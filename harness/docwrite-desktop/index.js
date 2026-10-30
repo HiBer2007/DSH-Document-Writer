@@ -742,7 +742,9 @@ export function apply(ctx, config) {
             verdict === 'pass'
               ? `docwrite_stage_done ${stage}`
               : verdict === 'revise'
-                ? '按反馈修改后重新调用 docwrite_visual_check'
+                ? custom
+                  ? '按反馈修改后重新调用 docwrite_visual_check'
+                  : '用户要求修改但未填写具体说明；先问清楚要改哪里，再修改'
                 : '稍后再验收',
         }
       },

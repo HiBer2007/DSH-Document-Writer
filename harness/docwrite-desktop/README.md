@@ -37,7 +37,9 @@ target: K:\AI文档编写\harness\docwrite-desktop
   `presets/docwrite/agent.cordis.yml` 的 `file://` URL；
 - `docwrite-harness.config.root`：项目根。
 
-TUI 侧由 `docwrite mode install --profile dsh-tui` 自动生成 include 路径，不需要手改。
+TUI 侧由 `docwrite mode install --profile dsh-tui` 自动生成内联 preset 行，不需要手改。
+修改 `presets/docwrite/agent.cordis.yml` 后，运行
+`node scripts/sync-desktop-preset.mjs` 重新生成 `cordis.patch.yml`；测试会校验两者一致。
 
 ## 验证
 
