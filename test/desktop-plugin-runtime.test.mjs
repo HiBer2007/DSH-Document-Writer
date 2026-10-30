@@ -235,13 +235,14 @@ test('desktop Host 插件：visual_check 展示产物并返回用户验收结论
     const passTool = passCtx.tools.find((tool) => tool.name === 'docwrite_visual_check')
     const pass = await passTool.execute(
       { project: '测试' },
-      { agent: { id: 'agent-1' }, signal: new AbortController().signal },
+      { agent: { id: 'agent-1' }, callId: 'call-1', signal: new AbortController().signal },
     )
     assert.equal(pass.verdict, 'pass')
     assert.match(pass.summary, /S5 初稿/)
     assert.match(pass.summary, /draft\.md/)
     assert.match(pass.summary, /第一段内容/)
     assert.equal(passCtx.questions.length, 1)
+    assert.equal(passCtx.questions[0].wait.callId, 'call-1')
     assert.match(passCtx.questions[0].questions[0].detail, /📊 进度/)
     assert.equal(passCtx.questions[0].questions[0].options.length, 3)
 

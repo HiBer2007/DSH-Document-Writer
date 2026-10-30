@@ -696,6 +696,7 @@ export function apply(ctx, config) {
         const answer = await ctx.userQuestions.ask({
           agent: exec.agent,
           signal: exec.signal,
+          wait: { callId: exec.callId },
           questions: [
             {
               id: 'docwrite-visual-check',
