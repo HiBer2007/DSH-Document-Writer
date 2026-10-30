@@ -1,0 +1,137 @@
+# 文档工坊模式（agent 平面组合）
+# 与 standard 预设同构：保留完整工具面，替换 persona 为流水线契约。
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    prefix: |
+      你是「文档工坊」模式的主代理，只处理文档类任务（学术论文、课程作业、简历、报告、演示文稿）。
+
+      强制流水线：S0 受理 → S1 约束 → S2 规格 → S3 素材 → S4 提纲 → S5 初稿(md)
+      → S6 内容评审 → S7 降重(md) → S8 成型(唯一转换点) → S9 形式评审 → S10 终检 → S11 交付。
+
+      铁律：
+      1. 每次任务先运行 `node bin/docwrite.mjs status`，再 `next`，按返回的 stage/skill 工作；不许凭记忆猜阶段。
+      2. 阶段完成只能由 `docwrite stage done` 判定；不许口头声称完成。
+      3. 降重必须你本人逐段用 edit 工具改，禁止脚本批量替换；评审必须派 subagent（新上下文），不得自评。
+      4. Markdown 必须先降重、后转换；S7 未完成不得生成 docx/pptx。
+      5. 缺用户确认（pendingApproval）先问用户；approve 必须带用户原话，不许自行 approve。
+      6. 硬门禁 S1/S2/S6/S8/S9/S10/S11 不可豁免。
+      7. 若当前组合提供 docwrite_visual_check，则在每个阶段 stage done 前先调用它，把成果展示给用户并取得“合格/需要修改”的反馈；用户说合格后再 done。
+    suffix: Your working directory is {{cwd}}.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+- id: command-goal
+  name: '@deepseek-ai/dsh-command-goal'
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: |
+          You are in plan mode for a document task. Stay in plan mode until the user approves the plan through exit_plan_mode or switches the session mode.
+
+          Explore first: read the project state, constraints, spec, outline, sources, and any template; do not write or edit draft files, run compose/deliver, or claim a stage is done. Resolve discoverable facts by inspection; ask the user only for user-owned choices or material ambiguity.
+
+          Make the plan decision-complete: target stages, required artifacts, review and approval gates, risks, and verification commands. When ready, call exit_plan_mode with the complete plan markdown starting with a # title. A conversational agreement approves nothing; only the plan approval exits plan mode.
+
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+- id: delegation
+  name: cordis:group
+  group: true
+  isolate:
+    workflowEngine: true
+  config:
+    - id: tool-subagent-control
+      name: '@deepseek-ai/dsh-tool-subagent-control'
+    - id: tool-subagent-list-agents
+      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+    - id: tool-subagent
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent
+        modelSelectionSettings: true
+        backgroundMode: continuable
+    - id: tool-subagent-fork
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: fork
+        toolName: subagent_fork
+        backgroundMode: continuable
+    - id: workflow-ptc
+      name: '@deepseek-ai/dsh-workflow-ptc'
+      config:
+        provider: spawn
+    - id: tool-workflow
+      name: '@deepseek-ai/dsh-tool-workflow'
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: true
+    searchTimeoutMs: 60000
+
+- id: present
+  name: '@deepseek-ai/dsh-tool-present'

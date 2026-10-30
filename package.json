@@ -1,0 +1,21 @@
+{
+  "name": "docwrite",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "文档工坊：12 阶段强制流水线的文档写作工具链",
+  "bin": {
+    "docwrite": "./bin/docwrite.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "smoke": "node bin/docwrite.mjs help"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "yaml": "^2.8.0"
+  }
+}

@@ -1,0 +1,269 @@
+{
+  "version": 2,
+  "skills": [
+    {
+      "id": "docwrite",
+      "stage": null,
+      "gate": null,
+      "approval": null,
+      "requires": [],
+      "produces": [],
+      "commands": [
+        "docwrite status",
+        "docwrite next",
+        "docwrite dispatch"
+      ],
+      "path": ".dsh/skills/docwrite/SKILL.md"
+    },
+    {
+      "id": "docwrite-intake",
+      "stage": "S0",
+      "gate": "soft",
+      "approval": "U0",
+      "requires": [],
+      "produces": [
+        "brief.md"
+      ],
+      "commands": [
+        "docwrite init",
+        "docwrite status",
+        "docwrite next"
+      ],
+      "path": ".dsh/skills/docwrite-intake/SKILL.md"
+    },
+    {
+      "id": "docwrite-constraints",
+      "stage": "S1",
+      "gate": "hard",
+      "approval": "U1",
+      "requires": [
+        "S0"
+      ],
+      "produces": [
+        "constraints.json"
+      ],
+      "commands": [
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-constraints/SKILL.md"
+    },
+    {
+      "id": "docwrite-spec",
+      "stage": "S2",
+      "gate": "hard",
+      "approval": "U2",
+      "requires": [
+        "S1"
+      ],
+      "produces": [
+        "spec.md"
+      ],
+      "commands": [
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-spec/SKILL.md"
+    },
+    {
+      "id": "docwrite-source",
+      "stage": "S3",
+      "gate": "soft",
+      "approval": null,
+      "requires": [
+        "S1"
+      ],
+      "produces": [
+        "sources/index.json"
+      ],
+      "commands": [
+        "docwrite source add",
+        "docwrite source declare",
+        "docwrite source status",
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-source/SKILL.md"
+    },
+    {
+      "id": "docwrite-outline",
+      "stage": "S4",
+      "gate": "soft",
+      "approval": "U3",
+      "requires": [
+        "S2"
+      ],
+      "produces": [
+        "outline.md"
+      ],
+      "commands": [
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-outline/SKILL.md"
+    },
+    {
+      "id": "docwrite-draft",
+      "stage": "S5",
+      "gate": "soft",
+      "approval": null,
+      "requires": [
+        "S4"
+      ],
+      "produces": [
+        "draft.md"
+      ],
+      "commands": [
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-draft/SKILL.md"
+    },
+    {
+      "id": "docwrite-review-content",
+      "stage": "S6",
+      "gate": "hard",
+      "approval": "U4",
+      "requires": [
+        "S5"
+      ],
+      "produces": [
+        "review-content.json"
+      ],
+      "commands": [
+        "docwrite review open",
+        "docwrite review submit",
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-review-content/SKILL.md"
+    },
+    {
+      "id": "docwrite-reduce",
+      "stage": "S7",
+      "gate": "soft",
+      "approval": "U5",
+      "requires": [
+        "S6"
+      ],
+      "produces": [
+        "draft_reduced.md",
+        "reduce-report.json",
+        "human-review.json"
+      ],
+      "commands": [
+        "docwrite scan",
+        "docwrite suggest",
+        "docwrite diff",
+        "docwrite review open",
+        "docwrite review submit",
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-reduce/SKILL.md"
+    },
+    {
+      "id": "docwrite-compose",
+      "stage": "S8",
+      "gate": "hard",
+      "approval": "U6",
+      "requires": [
+        "S7"
+      ],
+      "produces": [
+        "build"
+      ],
+      "commands": [
+        "docwrite docx fill",
+        "docwrite docx md",
+        "docwrite from-md",
+        "docwrite pptx fill",
+        "docwrite ppt build",
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-compose/SKILL.md"
+    },
+    {
+      "id": "docwrite-review-form",
+      "stage": "S9",
+      "gate": "hard",
+      "approval": "U4",
+      "requires": [
+        "S8"
+      ],
+      "produces": [
+        "review-form.json"
+      ],
+      "commands": [
+        "docwrite review open",
+        "docwrite review submit",
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-review-form/SKILL.md"
+    },
+    {
+      "id": "docwrite-verify",
+      "stage": "S10",
+      "gate": "hard",
+      "approval": "U4",
+      "requires": [
+        "S9"
+      ],
+      "produces": [
+        "verify-report.md"
+      ],
+      "commands": [
+        "docwrite verify",
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-verify/SKILL.md"
+    },
+    {
+      "id": "docwrite-deliver",
+      "stage": "S11",
+      "gate": "hard",
+      "approval": "U7",
+      "requires": [
+        "S10"
+      ],
+      "produces": [
+        "deliver"
+      ],
+      "commands": [
+        "docwrite deliver",
+        "docwrite stage done"
+      ],
+      "path": ".dsh/skills/docwrite-deliver/SKILL.md"
+    }
+  ],
+  "routes": [
+    {
+      "when": "新文档",
+      "entry": "S0",
+      "skill": "docwrite-intake"
+    },
+    {
+      "when": "只查重",
+      "entry": "S7",
+      "skill": "docwrite-reduce",
+      "scope": "scan"
+    },
+    {
+      "when": "只改一段",
+      "entry": "S5",
+      "skill": "docwrite-draft",
+      "scope": "revise"
+    },
+    {
+      "when": "只转格式",
+      "entry": "S8",
+      "skill": "docwrite-compose",
+      "scope": "compose"
+    },
+    {
+      "when": "只校验",
+      "entry": "S10",
+      "skill": "docwrite-verify",
+      "scope": "verify"
+    },
+    {
+      "when": "做 PPT",
+      "entry": "S8",
+      "skill": "docwrite-compose",
+      "scope": "compose"
+    }
+  ]
+}

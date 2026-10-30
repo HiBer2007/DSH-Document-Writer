@@ -1,0 +1,29 @@
+{
+  "workflow": {
+    "maxLoopsPerEdge": 3,
+    "maxTotalRevisions": 8,
+    "maxRoundsPerReview": 3,
+    "minDiffCheckpoints": 3,
+    "maxChangedRatioPerCheckpoint": 0.3,
+    "requireApprovals": true
+  },
+  "thresholds": {
+    "modificationRateMin": 0.4,
+    "wordBudgetTolerance": 0.2
+  },
+  "humanLikeness": {
+    "aiRateMax": 0.35,
+    "aiFlavorMax": 0.3,
+    "machineFlavorMax": 0.3,
+    "requireIndependentReview": true
+  },
+  "pptMaster": {
+    "root": "vendor/ppt-master",
+    "python": "OLD/.venv/Scripts/python.exe",
+    "previewPort": 5050,
+    "autoOpenBrowser": false
+  },
+  "pdf": {
+    "backend": "auto"
+  }
+}

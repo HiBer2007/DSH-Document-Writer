@@ -1,0 +1,31 @@
+# 本地个人文档与冻结存档（不进入开源仓库）
+projects/
+OLD/
+vendor/
+
+# 依赖与运行产物
+node_modules/
+.run/
+build/
+deliver/
+coverage/
+dist/
+*.log
+*.tmp
+
+# 本地凭据
+.env
+.env.*
+.credentials*
+*.pem
+
+# DSH 本地状态（保留项目 skill 库）
+.dsh/*
+!.dsh/skills/
+!.dsh/skills/**
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
