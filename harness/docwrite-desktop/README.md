@@ -4,10 +4,10 @@
 
 1. **预设**：注册 `docwrite`（显示名「文档工坊」），组合来自
    `presets/docwrite/agent.cordis.yml`，与 TUI 共用同一份 12 阶段契约。
-2. **封装工具**（12 个）：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、
+2. **封装工具**（13 个）：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、
    `docwrite_next`、`docwrite_stage_enter`、`docwrite_stage_done`、`docwrite_approve`、
-   `docwrite_review_open`、`docwrite_review_submit`、`docwrite_visual_check`、
-   `docwrite_verify`、`docwrite_deliver`。
+   `docwrite_review_open`、`docwrite_review_submit`、`docwrite_review_extend`、
+   `docwrite_visual_check`、`docwrite_verify`、`docwrite_deliver`。
    工具不依赖安装机上的固定路径：CLI 代码在插件包的 `cli/` 里，`cwd` 是当前会话工作区；
    工作区若自带 `bin/docwrite.mjs`，优先用工作区那份。
 3. **强制流程机**：`ctx.tools.guard()` 在 S8 成型前拒绝 `write` / `edit` 产出
@@ -61,8 +61,8 @@ Invoke-RestMethod ("http://127.0.0.1:14558/docwrite/state?root=" + [uri]::Escape
 # 工具已挂载（在会话里）
 #   docwrite_init / docwrite_constraints / docwrite_status / docwrite_next
 #   docwrite_stage_enter / docwrite_stage_done / docwrite_approve
-#   docwrite_review_open / docwrite_review_submit / docwrite_visual_check
-#   docwrite_verify / docwrite_deliver
+#   docwrite_review_open / docwrite_review_submit / docwrite_review_extend
+#   docwrite_visual_check / docwrite_verify / docwrite_deliver
 
 # 门禁：S8 前写 <workspace>/projects/<name>/**/*.docx 应被拒绝
 ```

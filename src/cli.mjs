@@ -80,6 +80,7 @@ const HELP = `docwrite — 文档工坊
   stage enter|done|waive|reopen|jump ...   阶段操作（done 会跑检查）
   review open --stage S7 --doc <文件>      生成独立评审包
   review submit --id <reviewId>            收评审结论
+  review extend --stage S6 --by user --quote "..."  用户同意后追加评审轮次
   review status
   verify [--json]                          终检：done 阶段哈希 + 检查 + 扩展
   deliver [--to docx|pptx|md]              交付到 deliver/ 并写清单

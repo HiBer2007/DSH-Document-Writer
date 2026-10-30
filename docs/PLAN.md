@@ -40,8 +40,8 @@
 9. ppt-master 作为外部 skill 模块接入，网页预览由本工具链统一接管。
 10. 打包成 DSH 预设「文档工坊」：TUI 用声明式 `preset-docwrite` 行，Desktop 用
     `harness/docwrite-desktop` bundle，一键切换。
-11. Desktop 预设带 12 个封装工具、S8 硬门禁、只读流水线面板和
-    `docwrite_visual_check` 人工验收工具；工具按当前会话工作区运行，CLI 与 skill 库打包在插件内。
+11. Desktop 预设带 13 个封装工具、S8 硬门禁、只读流水线面板、
+    `docwrite_visual_check` 人工验收工具和用户确认后的评审轮次追加；工具按当前会话工作区运行，CLI 与 skill 库打包在插件内。
 12. 开源到 GitHub（`HiBer2007/DSH-Document-Writer`），加 `dsh-plugin` 等 topics，
     让 DSH 用户能搜索并安装。
 
@@ -246,7 +246,7 @@ ESM，Node ≥ 20；运行时依赖 `fflate`（zip）与 `yaml`（清单校验�
 | M9 | 迁移三个存量项目 | 新旧产物文本一致 |
 | M10 | DSH 模式安装 + 端到端验收 | `/preset docwrite` 可用，全程走通 |
 | M11 | TUI / Desktop 声明式预设 | TUI `preset-docwrite` 行、Desktop bundle 均能挂载；预设 roster 无 broken |
-| M12 | Desktop 工具 + 门禁 + GUI + 人工验收 | 12 个工具可用；S8 前 docx 被拒；面板/验收卡可用 |
+| M12 | Desktop 工具 + 门禁 + GUI + 人工验收 | 13 个工具可用；S8 前 docx 被拒；面板/验收卡可用 |
 | M13 | 降重 v2 + 开源发布 | 词表只作线索、鱼八股规则落地；GitHub 仓库带 `dsh-plugin` topics |
 
 ## 10. 风险与取舍

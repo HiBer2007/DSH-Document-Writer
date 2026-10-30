@@ -44,9 +44,22 @@ export function openReview(projectDir, state, { stage, doc, config }) {
   if (!existsSync(docPath)) throw new CliError(`待评审文件不存在：${doc}`, EXIT.PREREQ)
 
   const previous = state.reviews?.[stage]
+  if (previous?.status === 'open') {
+    throw new CliError(
+      `还有未提交的评审：${previous.id}；先运行 docwrite review submit --id ${previous.id}，再开下一轮`,
+      EXIT.PREREQ,
+    )
+  }
+
+  const extraRounds = previous?.extraRounds ?? 0
   const round = (previous?.round ?? 0) + 1
-  if (config && round > config.maxRoundsPerReview) {
-    throw new CliError(`评审轮次超限：${stage} 第 ${round} 轮（上限 ${config.maxRoundsPerReview}）`, EXIT.BUDGET)
+  const limit = config.maxRoundsPerReview + extraRounds
+  if (round > limit) {
+    throw new CliError(
+      `评审轮次超限：${stage} 第 ${round} 轮（基础上限 ${config.maxRoundsPerReview}，已追加 ${extraRounds} 轮）。` +
+        `如用户同意继续，运行 docwrite review extend --stage ${stage} --add 1 --by user --quote "用户原话"`,
+      EXIT.BUDGET,
+    )
   }
 
   const id = `${stage}-${randomBytes(3).toString('hex')}`
@@ -91,6 +104,8 @@ ${FOCUS[stage] ?? '按 rubric 评审。'}
 
   state.reviews = state.reviews ?? {}
   state.reviews[stage] = {
+    extraRounds,
+    extensions: previous?.extensions ?? [],
     id,
     stage,
     status: 'open',
@@ -102,7 +117,93 @@ ${FOCUS[stage] ?? '按 rubric 评审。'}
   appendEvent(projectDir, { type: 'review.open', stage, id, round })
   saveState(projectDir, state)
 
-  return { id, dir, promptPath: join(dir, 'prompt.md'), outputPath, docPath, round }
+  return { id, dir, promptPath: join(dir, 'prompt.md'), outputPath, docPath, round, limit }
+}
+
+/**
+ * 用户确认后追加评审轮次。只加预算，不自动开评审；开下一轮仍走 review open。
+ * 必须在上一轮已提交、且已到当前上限时才能追加。
+ */
+export function extendReview(
+  projectDir,
+  state,
+  { stage, add = 1, by, quote, reason = '', config = {} } = {},
+) {
+  if (!REVIEW_STAGES.includes(stage)) {
+    throw new CliError(`不是评审阶段：${stage}（可用：${REVIEW_STAGES.join('、')}）`, EXIT.USAGE)
+  }
+  if (by !== 'user') {
+    throw new CliError('追加评审轮次必须由用户确认：--by user', EXIT.PREREQ)
+  }
+  if (typeof quote !== 'string' || quote.trim() === '') {
+    throw new CliError('缺少用户原话：--quote "用户同意追加的原话"', EXIT.USAGE)
+  }
+  const amount = Number(add)
+  if (!Number.isInteger(amount) || amount < 1) {
+    throw new CliError('--add 必须是正整数', EXIT.USAGE)
+  }
+
+  const previous = state.reviews?.[stage]
+  if (previous?.status === 'open') {
+    throw new CliError(
+      `还有未提交的评审：${previous.id}；先运行 docwrite review submit --id ${previous.id}，再追加轮次`,
+      EXIT.PREREQ,
+    )
+  }
+
+  const base = config.maxRoundsPerReview ?? 3
+  const maxExtra = config.maxReviewExtraRounds ?? 2
+  const used = previous?.extraRounds ?? 0
+  if (used + amount > maxExtra) {
+    throw new CliError(
+      `评审追加轮次超限：${stage} 已追加 ${used} 轮（上限 ${maxExtra}）；` +
+        `如仍需继续，只能由用户决定回退或接受现有评审结论`,
+      EXIT.BUDGET,
+    )
+  }
+
+  const round = previous?.round ?? 0
+  const currentLimit = base + used
+  if (round < currentLimit) {
+    throw new CliError(
+      `还没到评审轮次上限：${stage} 已开 ${round} 轮（当前上限 ${currentLimit}），直接 review open 即可`,
+      EXIT.PREREQ,
+    )
+  }
+
+  const extension = {
+    at: now(),
+    add: amount,
+    by,
+    quote,
+    reason,
+    previousLimit: currentLimit,
+    newLimit: currentLimit + amount,
+  }
+  state.reviews = state.reviews ?? {}
+  state.reviews[stage] = {
+    ...(previous ?? {}),
+    stage,
+    extraRounds: used + amount,
+    extensions: [...(previous?.extensions ?? []), extension],
+  }
+  appendEvent(projectDir, {
+    type: 'review.extend',
+    stage,
+    add: amount,
+    by,
+    quote,
+    reason,
+    extraRounds: used + amount,
+  })
+  saveState(projectDir, state)
+  return {
+    stage,
+    extraRounds: used + amount,
+    limit: currentLimit + amount,
+    maxExtra,
+    extension,
+  }
 }
 
 export function submitReview(projectDir, state, id) {

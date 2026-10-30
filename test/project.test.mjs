@@ -17,7 +17,7 @@ import {
 } from '../src/core/state.mjs'
 import { checkStage } from '../src/core/checks.mjs'
 import { CliError } from '../src/core/errors.mjs'
-import { openReview, submitReview } from '../src/core/review.mjs'
+import { extendReview, openReview, submitReview } from '../src/core/review.mjs'
 import { buildDocx } from './helpers/build-docx.mjs'
 
 function withRoot(fn) {
@@ -87,6 +87,70 @@ test('S1 检查：缺 constraints.json 失败，补齐后通过', () => {
     )
     const check = checkStage(dir, state, 'S1', config)
     assert.equal(check.ok, true, check.errors.join(';'))
+  })
+})
+
+test('review：轮次上限后只能由用户追加，追加次数有总上限', () => {
+  withRoot((root) => {
+    const { dir, state } = initProject({ root, name: 'demo' })
+    writeFileSync(join(dir, 'draft_reduced.md'), '这是待评审文本。')
+    const config = loadConfig(root)
+    const open = () =>
+      openReview(dir, state, { stage: 'S7', doc: 'draft_reduced.md', config })
+    const submit = (opened) => {
+      writeFileSync(
+        join(opened.dir, 'review.json'),
+        JSON.stringify({
+          reviewId: opened.id,
+          stage: 'S7',
+          reviewer: 'subagent',
+          verdict: 'revise',
+          issues: [],
+        }),
+      )
+      return submitReview(dir, state, opened.id)
+    }
+
+    for (let round = 1; round <= 3; round += 1) {
+      const opened = open()
+      assert.equal(opened.round, round)
+      submit(opened)
+    }
+
+    assert.equal(codeOf(open), 5)
+    assert.equal(codeOf(() => extendReview(dir, state, {
+      stage: 'S7', add: 1, by: 'assistant', quote: '模型自己加', config,
+    })), 3)
+    assert.equal(codeOf(() => extendReview(dir, state, {
+      stage: 'S7', add: 1, by: 'user', quote: '  ', config,
+    })), 1)
+    assert.equal(codeOf(() => extendReview(dir, state, {
+      stage: 'S6', add: 1, by: 'user', quote: '同意', config,
+    })), 3)
+
+    const first = extendReview(dir, state, {
+      stage: 'S7', add: 1, by: 'user', quote: '同意再评一轮', reason: '复核修复', config,
+    })
+    assert.equal(first.limit, 4)
+    const fourth = open()
+    assert.equal(fourth.round, 4)
+    assert.equal(codeOf(() => extendReview(dir, state, {
+      stage: 'S7', add: 1, by: 'user', quote: '再追加', config,
+    })), 3)
+    submit(fourth)
+
+    const second = extendReview(dir, state, {
+      stage: 'S7', add: 1, by: 'user', quote: '再同意一轮', reason: '复核最后两处', config,
+    })
+    assert.equal(second.limit, 5)
+    const fifth = open()
+    assert.equal(fifth.round, 5)
+    submit(fifth)
+
+    assert.equal(codeOf(open), 5)
+    assert.equal(codeOf(() => extendReview(dir, state, {
+      stage: 'S7', add: 1, by: 'user', quote: '还要', config,
+    })), 5)
   })
 })
 

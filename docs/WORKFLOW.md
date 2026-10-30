@@ -19,6 +19,7 @@
 | R6 | **素材允许后补** | S3 可为 `partial`，不阻塞 S4/S5；后补时下游阶段标 `stale` 重检 |
 | R7 | **三味同除：AI 率、AI 味、机器味** | 评审按 `rules/human-rubric.md` 三轴打分，任一超标即 revise；禁止同义词机械替换 |
 | R8 | **AI 率评审必须独立** | 由新上下文/子代理按 rubric 评；主代理不得自评，`review submit --reviewer main` 直接拒绝 |
+| R9 | **评审轮次可追加但不可自批** | 每阶段默认 3 轮；用满后必须由用户确认才能 `review extend`，每阶段最多追加 2 轮；模型不能自己加轮次 |
 
 ---
 
@@ -127,7 +128,8 @@ S1 约束 → S2 规格 → S3 素材 → S4 提纲 → S5 初稿(md)
 | 执行者 | 独立子代理（新上下文）；主代理不得自评 |
 | 产物 | `review-content.json`（`verdict` + `issues[]`） |
 | 检查 | `pass` 才可 done；`revise` 必须带合法回退目标；`reject` → blocked |
-| 命令 | `docwrite review submit --stage S6 --verdict revise --jump S5 --issues review-content.json` |
+| 轮次超限 | 先 submit 上一轮；向用户说明后 `review extend`（Desktop 用 `docwrite_review_extend`）；每阶段最多 +2 |
+| 命令 | `docwrite review open --stage S6 --doc draft.md`、`docwrite review submit --id <id>`、`docwrite review extend ...` |
 | 确认 | U4（评审结论是否认可） |
 
 ### S7 降重 reduce ｜ 软 · **模型亲手 edit + 独立子代理评审**
@@ -140,7 +142,7 @@ S1 约束 → S2 规格 → S3 素材 → S4 提纲 → S5 初稿(md)
 | 执行者 | 改写 = 模型本人；评审 = 子代理；脚本、扩展、子代理代写一律禁止 |
 | 步骤 | ① `cp draft.md draft_reduced.md` ② `scan` 出热点 ③ 逐段 `edit`（禁同义词机械替换）④ 每批 `diff` ⑤ `review open` ⑥ 派子代理评审 ⑦ revise → 回 ③；pass → `reduce check` |
 | 检查 | 修改率 ≥ 阈值；保护区改动 = 0；检查点 ≥ 3；单检查点改动 ≤ 30%；三轴均 ≤ 阈值；`reviewer=subagent` |
-| 命令 | `docwrite scan`、`docwrite suggest`、`docwrite diff`、`docwrite review open --stage S7`、`docwrite review submit --id <reviewId>`、`docwrite reduce check` |
+| 命令 | `docwrite scan`、`docwrite suggest`、`docwrite diff`、`docwrite review open --stage S7`、`docwrite review submit --id <reviewId>`、`docwrite review extend --stage S7 ...`、`docwrite reduce check` |
 | 确认 | U5（进入前确认范围与目标）、U4（评审结论） |
 | 失败 | 三轴任一超标 → 继续 edit；主代理自评 → `exit 3`；不许改阈值、不许换脚本 |
 
@@ -168,7 +170,8 @@ S1 约束 → S2 规格 → S3 素材 → S4 提纲 → S5 初稿(md)
 | 执行者 | CLI 机器检查（`docwrite check form`），结论经 U4 确认 |
 | 产物 | `review-form.json` |
 | 检查 | `pass` → done；`revise` → 回 S8（排版）或 S5（内容，需重走 S6/S7/S8） |
-| 命令 | `docwrite review submit --stage S9 ...` |
+| 轮次超限 | 先 submit 上一轮；用户确认后用 `review extend` 或 Desktop `docwrite_review_extend`；每阶段最多 +2 |
+| 命令 | `docwrite review submit --stage S9 ...`、`docwrite review extend --stage S9 ...` |
 | 确认 | U4 |
 
 ### S10 终检 verify ｜ 硬 · 循环点
@@ -270,6 +273,7 @@ scan → edit 一段 → diff → … → 自查达标 → review open → 子�
 | `maxLoopsPerEdge` | 3 | 同一条边最多回退 3 次 |
 | `maxTotalRevisions` | 8 | 整个项目累计回退上限 |
 | `maxRoundsPerReview` | 3 | 同一评审最多出 3 次 verdict |
+| `maxReviewExtraRounds` | 2 | 用户确认后每阶段最多追加的评审轮次 |
 | `minDiffCheckpoints` | 3 | S7 至少 3 个检查点 |
 | `maxChangedRatioPerCheckpoint` | 0.30 | 单检查点改动段落占比上限（防批量替换） |
 
@@ -471,8 +475,9 @@ docwrite stage reopen <S> --reason "..."
 docwrite unblock --reset-edge|--reset-all
 
 # 评审（独立子代理）
-docwrite review open --stage S6|S7|S10 --doc <文件>    # 生成评审包：prompt/rubric/doc/template
+docwrite review open --stage S6|S7|S9 --doc <文件>    # 生成评审包：prompt/rubric/doc/template
 docwrite review submit --id <reviewId>                 # 收子代理结论，校验 reviewer=subagent
+docwrite review extend --stage S6 --add 1 --by user --quote "用户原话" --reason "..."
 docwrite review status
 
 # 形式评审（S9，机器检查后可人工确认结论）

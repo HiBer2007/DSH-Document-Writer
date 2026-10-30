@@ -68,9 +68,9 @@ plugin_manager  action: install_bundle
 
 - 新建会话时选择「文档工坊」；
 - 左侧栏出现「文档工坊」面板，显示阶段进度、待确认点、blocked 原因；
-- 模型侧多出 12 个工具：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、`docwrite_next`、`docwrite_stage_enter`、
-  `docwrite_stage_done`、`docwrite_approve`、`docwrite_review_open`、
-  `docwrite_review_submit`、`docwrite_visual_check`、`docwrite_verify`、`docwrite_deliver`；
+- 模型侧多出 13 个工具：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、`docwrite_next`、`docwrite_stage_enter`、
+  `docwrite_stage_done`、`docwrite_approve`、`docwrite_review_open`、`docwrite_review_submit`、
+  `docwrite_review_extend`、`docwrite_visual_check`、`docwrite_verify`、`docwrite_deliver`；
 - `docwrite_visual_check` 会把当前成果做成验收卡（阶段进度、产物、指标、正文预览），
   问用户“合格 / 需要修改 / 暂不判断”。
 

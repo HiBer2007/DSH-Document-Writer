@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../harness/docwrite-desktop/index.js'
@@ -111,7 +111,7 @@ function makeCtx({
         return {
           answers: [
             {
-              id: 'docwrite-visual-check',
+              id: answer.id ?? 'docwrite-visual-check',
               selected: answer.selected,
               ...(answer.custom === undefined ? {} : { custom: answer.custom }),
             },
@@ -137,7 +137,7 @@ function makeCtx({
   return { ctx, tools, guards, routes, questions }
 }
 
-test('desktop Host 插件：注册 12 个 docwrite 工具与两条只读路由', () => {
+test('desktop Host 插件：注册 13 个 docwrite 工具与两条只读路由', () => {
   const { root, dir } = makeRoot()
   try {
     const { ctx, tools, routes } = makeCtx()
@@ -154,6 +154,7 @@ test('desktop Host 插件：注册 12 个 docwrite 工具与两条只读路由',
         'docwrite_approve',
         'docwrite_review_open',
         'docwrite_review_submit',
+        'docwrite_review_extend',
         'docwrite_visual_check',
         'docwrite_verify',
         'docwrite_deliver',
@@ -236,6 +237,74 @@ test('desktop Host 插件：status 工具省略 project 时返回全部项目快
     assert.equal(content[0].type, 'text')
     assert.match(content[0].text, /文档工坊/)
     assert.match(content[0].text, /S5 初稿/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+function patchReview(dir, review) {
+  const path = join(dir, '.run', 'state.json')
+  const state = JSON.parse(readFileSync(path, 'utf8'))
+  state.reviews = { [review.stage]: review }
+  writeFileSync(path, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
+}
+
+test('desktop Host 插件：review_extend 必须用户允许，并按预算追加', async () => {
+  const { root, dir } = makeRoot()
+  try {
+    const { ctx, tools, questions } = makeCtx({
+      realSubprocess: true,
+      sessionCwd: root,
+      answer: { id: 'docwrite-review-extend', selected: ['允许，加 1 轮'] },
+    })
+    apply(ctx, {})
+    patchReview(dir, { id: 'S6-old', stage: 'S6', status: 'submitted', round: 3, extraRounds: 0 })
+    const tool = tools.find((entry) => entry.name === 'docwrite_review_extend')
+    const value = await tool.execute(
+      { stage: 'S6', reason: '复核这一轮的 6 条修改' },
+      { agent: { id: 'agent-1' }, signal: new AbortController().signal },
+    )
+    assert.equal(value.extended, true)
+    assert.equal(value.limit, 4)
+    assert.equal(value.quote, '允许，加 1 轮')
+    assert.equal(questions.length, 1)
+    assert.match(questions[0].questions[0].question, /S6 已开 3 轮/)
+
+    const state = JSON.parse(readFileSync(join(dir, '.run', 'state.json'), 'utf8'))
+    assert.equal(state.reviews.S6.extraRounds, 1)
+    assert.equal(state.reviews.S6.extensions.at(-1).quote, '允许，加 1 轮')
+    assert.equal(state.reviews.S6.extensions.at(-1).reason, '复核这一轮的 6 条修改')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop Host 插件：review_extend 在用户拒绝 / 未到上限 / 未提交时都不追加', async () => {
+  const { root, dir } = makeRoot()
+  try {
+    const { ctx, tools } = makeCtx({
+      realSubprocess: true,
+      sessionCwd: root,
+      answer: { id: 'docwrite-review-extend', selected: ['不增加，按现有评审结论处理'] },
+    })
+    apply(ctx, {})
+    const tool = tools.find((entry) => entry.name === 'docwrite_review_extend')
+    const context = { agent: { id: 'agent-1' }, signal: new AbortController().signal }
+
+    patchReview(dir, { id: 'S6-old', stage: 'S6', status: 'submitted', round: 3, extraRounds: 0 })
+    const declined = await tool.execute({ stage: 'S6', reason: '想再评一次' }, context)
+    assert.equal(declined.extended, false)
+    assert.equal(declined.reason, 'user-declined')
+
+    patchReview(dir, { id: 'S6-old', stage: 'S6', status: 'submitted', round: 1, extraRounds: 0 })
+    const below = await tool.execute({ stage: 'S6', reason: '想再评一次' }, context)
+    assert.equal(below.extended, false)
+    assert.equal(below.reason, 'below-cap')
+
+    patchReview(dir, { id: 'S6-old', stage: 'S6', status: 'open', round: 3, extraRounds: 0 })
+    const open = await tool.execute({ stage: 'S6', reason: '想再评一次' }, context)
+    assert.equal(open.extended, false)
+    assert.equal(open.reason, 'open-review')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

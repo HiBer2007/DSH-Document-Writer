@@ -27,7 +27,7 @@
   - `docwrite mode install --profile dsh-tui` 写入 `preset-docwrite` 行；旧动态 `.mjs` 自动清理
   - `dsh --profile dsh-tui --dump-config` 组合通过；预设包与 include 包从 dsh 安装目录可解析
 - **追加：DSH Desktop 集成** ✅
-  - bundle `harness/docwrite-desktop`：声明式预设 + 12 个封装工具 + S8 硬门禁 + `/docwrite/state`、`/docwrite/presets` 两条只读路由 + 左侧栏「文档工坊」面板
+  - bundle `harness/docwrite-desktop`：声明式预设 + 13 个封装工具 + S8 硬门禁 + `/docwrite/state`、`/docwrite/presets` 两条只读路由 + 左侧栏「文档工坊」面板
   - 工具与门禁按**当前会话工作区**运行（`ctx.workingDirectory.ensure`）；CLI 打包在插件的 `cli/`，不再读安装时的固定路径
   - 已安装到 `desktop` profile；`/docwrite/presets` 返回 `docwrite` 且 `resolved: true`、`broken: null`
   - `sidebar.panellist` 与 `main` 槽位均已注册并 active；S8 前写 docx 被实测拒绝
@@ -39,6 +39,10 @@
   - `docwrite-constraints` skill 给出完整 schema 表与可复制示例，模型不再靠猜
   - bundle 内置 `skills/`；`docwrite_init` 把缺失的 skill 复制到工作区 `.dsh/skills`，空工作区也能看到 S1 规范
   - `docwrite_constraints` 工具提供 template/init/check 三个动作
+- **追加：评审轮次追加机制** ✅
+  - `review extend` 必须 `--by user` + 用户原话；每阶段默认最多追加 2 轮，状态与 `review.extend` 事件留痕
+  - 有 open 评审时必须先 `review submit`；未到上限不能预买轮次；用尽后只能回退或接受现有结论
+  - Desktop 新增 `docwrite_review_extend`：弹验收卡，用户点“允许”才追加，模型不能自批
 - **追加：Desktop 人工验收工具** ✅
   - `docwrite_visual_check`：阶段进度、产物清单、关键指标、正文预览做成验收卡
   - 三选一：合格 / 需要修改 / 暂不判断；不合格时收集需要修改的地方
@@ -64,7 +68,7 @@
 ## 测试
 
 ```
-npm test  →  123 tests, 0 fail
+npm test  →  126 tests, 0 fail
 ```
 
 覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。

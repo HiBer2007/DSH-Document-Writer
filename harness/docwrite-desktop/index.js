@@ -871,6 +871,149 @@ export function apply(ctx, config) {
 
   ctx.effect(() =>
     ctx.tools.register({
+      name: 'docwrite_review_extend',
+      description:
+        '评审轮次用满后向用户申请追加 1 轮。必须由用户在验收卡上点“允许”；用户原话会记入 review.extend 事件。模型不能自行追加，也不能在还有未提交评审时追加。',
+      parameters: {
+        type: 'object',
+        properties: {
+          stage: { type: 'string', enum: ['S6', 'S7', 'S9'], description: '评审阶段' },
+          reason: {
+            type: 'string',
+            description: '为什么需要追加：这一轮改了什么、还需要评审员复核什么',
+          },
+          project: projectParam,
+        },
+        required: ['stage', 'reason'],
+        additionalProperties: false,
+      },
+      output: textOutput((value) => JSON.stringify(value, null, 2)),
+      async execute(args, exec) {
+        const { root, projectState, resolveProject, callCli } = await toolContext(exec)
+        const name = resolveProject(args?.project)
+        const stage = String(args?.stage ?? '')
+        if (!['S6', 'S7', 'S9'].includes(stage)) {
+          throw new Error(`评审阶段必须是 S6/S7/S9，收到：${stage}`)
+        }
+        const reason = String(args?.reason ?? '').trim()
+        if (!reason) throw new Error('reason 不能为空：写清楚这一轮改了什么、要复核什么')
+        if (!exec.agent) throw new Error('docwrite_review_extend 需要 agent 会话')
+
+        let workflow = {}
+        try {
+          workflow = JSON.parse(readFileSync(join(root, 'docwrite.config.json'), 'utf8')).workflow ?? {}
+        } catch {
+          workflow = {}
+        }
+        const base = Number(workflow.maxRoundsPerReview ?? 3)
+        const maxExtra = Number(workflow.maxReviewExtraRounds ?? 2)
+        const review = projectState(name)?.state?.reviews?.[stage]
+        const round = Number(review?.round ?? 0)
+        const extra = Number(review?.extraRounds ?? 0)
+        const limit = base + extra
+
+        if (review?.status === 'open') {
+          return {
+            ok: false,
+            extended: false,
+            stage,
+            project: name,
+            reason: 'open-review',
+            message: `当前 ${stage} 还有未提交的评审 ${review.id}；先 docwrite_review_submit，再申请追加。`,
+          }
+        }
+        if (round < limit) {
+          return {
+            ok: false,
+            extended: false,
+            stage,
+            project: name,
+            reason: 'below-cap',
+            message: `${stage} 还没到上限（${round}/${limit}），直接 docwrite_review_open 即可。`,
+          }
+        }
+        if (extra >= maxExtra) {
+          return {
+            ok: false,
+            extended: false,
+            stage,
+            project: name,
+            reason: 'exhausted',
+            message: `${stage} 已追加 ${extra}/${maxExtra} 轮；请用户决定回退或接受现有结论。`,
+          }
+        }
+
+        const answer = await ctx.userQuestions.ask({
+          agent: exec.agent,
+          signal: exec.signal,
+          wait: { callId: exec.callId },
+          questions: [
+            {
+              id: 'docwrite-review-extend',
+              header: `文档工坊 · ${stage} 评审轮次`,
+              question: `${stage} 已开 ${round} 轮评审（基础上限 ${base}，已追加 ${extra} 轮）。是否允许再追加 1 轮，让评审员复核这一轮的修改？`,
+              detail: `追加理由：${reason}\n\n追加只影响 ${stage}；最多再追加 ${maxExtra - extra} 轮。不允许时按现有评审结论处理或回退。`,
+              options: [
+                {
+                  label: '允许，加 1 轮',
+                  description: `记录 review.extend；随后可开第 ${round + 1} 轮。`,
+                },
+                {
+                  label: '不增加，按现有评审结论处理',
+                  description: '不追加预算；按当前 verdict 决定回退或接受。',
+                },
+              ],
+            },
+          ],
+        })
+
+        const item = answer?.answers?.find((entry) => entry.id === 'docwrite-review-extend')
+        const selected = item?.selected ?? []
+        const custom = (item?.custom ?? '').trim()
+        if (!selected.some((label) => label.startsWith('允许'))) {
+          return {
+            ok: false,
+            extended: false,
+            stage,
+            project: name,
+            reason: 'user-declined',
+            quote: custom || selected.join('；') || '用户未允许追加',
+          }
+        }
+
+        const quote = custom || '允许，加 1 轮'
+        const result = await callCli([
+          'review',
+          'extend',
+          '--stage',
+          stage,
+          '--add',
+          '1',
+          '--by',
+          'user',
+          '--quote',
+          quote,
+          '--reason',
+          reason,
+          '--project',
+          name,
+        ])
+        return {
+          ok: true,
+          extended: true,
+          stage,
+          project: name,
+          round: round + 1,
+          limit: limit + 1,
+          quote,
+          output: result.stdout.trim(),
+        }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.tools.register({
       name: 'docwrite_visual_check',
       description:
         '把当前阶段的成果以可视化摘要（阶段进度、产物清单、关键指标、正文预览）展示给用户，并询问“是否合格、能否进入下一步”。不合格时收集需要修改的地方。每次 stage done 前先调用；它只记录人工验收意见，真正的阶段完成仍由 CLI 的 stage done 判定。',

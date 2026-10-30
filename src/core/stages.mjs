@@ -74,6 +74,7 @@ export const DEFAULTS = {
   maxLoopsPerEdge: 3,
   maxTotalRevisions: 8,
   maxRoundsPerReview: 3,
+  maxReviewExtraRounds: 2,
   minDiffCheckpoints: 3,
   maxChangedRatioPerCheckpoint: 0.3,
   requireApprovals: true,
