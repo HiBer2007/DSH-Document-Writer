@@ -87,6 +87,9 @@ plugin_manager  action: install_bundle
   （赋能、抓手、闭环、底层逻辑、新篇章、答卷）、排比三连、金句结尾、情绪拔高。
   命中 ≥2 类必须 revise。详见 `rules/machine-flavor.md` §10。
 - 降重执行者必须是模型本人；评审必须派新上下文子代理，主代理不得自评。
+- **不设统一修改率门槛**：`modificationRateMin` / `minDiffCheckpoints` 默认 `0`；
+  只有项目显式配置时才作为可选过程保底。初稿已经达标就保留原文或 `waive S7`，
+  禁止为凑 40% 做同义改写、拆句凑数——那是做作，不是降重。
 - **AI 率是代理分**：检测器在改写、跨模型、跨领域、中文语境下会误判；不唯分数，
   以三轴评审 + 独立子代理 + 人工确认为准。论文与机制见 `rules/ai-detection.md`。
 

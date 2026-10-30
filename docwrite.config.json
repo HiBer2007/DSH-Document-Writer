@@ -4,12 +4,12 @@
     "maxTotalRevisions": 8,
     "maxRoundsPerReview": 3,
     "maxReviewExtraRounds": 2,
-    "minDiffCheckpoints": 3,
+    "minDiffCheckpoints": 0,
     "maxChangedRatioPerCheckpoint": 0.3,
     "requireApprovals": true
   },
   "thresholds": {
-    "modificationRateMin": 0.4,
+    "modificationRateMin": 0,
     "wordBudgetTolerance": 0.2
   },
   "humanLikeness": {

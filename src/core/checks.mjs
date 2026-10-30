@@ -164,17 +164,24 @@ export function checkStage(projectDir, state, id, config) {
   if (id === 'S7') {
     const draft = join(projectDir, 'draft.md')
     const reduced = join(projectDir, 'draft_reduced.md')
-    if (existsSync(draft) && existsSync(reduced)) {
+    const rateFloor = Number(config.modificationRateMin ?? 0)
+    if (rateFloor > 0 && existsSync(draft) && existsSync(reduced)) {
       const result = diffTexts(readFileSync(draft, 'utf8'), readFileSync(reduced, 'utf8'))
-      if (result.modificationRate < config.modificationRateMin) {
+      if (result.modificationRate < rateFloor) {
         errors.push(
-          `修改率 ${(result.modificationRate * 100).toFixed(1)}% < ${(config.modificationRateMin * 100).toFixed(0)}%`,
+          `修改率 ${(result.modificationRate * 100).toFixed(1)}% < 项目配置下限 ` +
+            `${(rateFloor * 100).toFixed(0)}%（默认不强制；不需要就把 modificationRateMin 设为 0）`,
         )
       }
     }
-    const checkpoints = countCheckpoints(projectDir)
-    if (checkpoints < config.minDiffCheckpoints) {
-      errors.push(`diff 检查点 ${checkpoints} < ${config.minDiffCheckpoints}（需逐段改、逐批比对）`)
+    const checkpointFloor = Number(config.minDiffCheckpoints ?? 0)
+    if (checkpointFloor > 0) {
+      const checkpoints = countCheckpoints(projectDir)
+      if (checkpoints < checkpointFloor) {
+        errors.push(
+          `diff 检查点 ${checkpoints} < 项目配置下限 ${checkpointFloor}（默认不强制；不需要就设为 0）`,
+        )
+      }
     }
     const reviewPath = join(projectDir, 'human-review.json')
     if (existsSync(reviewPath)) {

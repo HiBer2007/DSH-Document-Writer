@@ -9,7 +9,7 @@ metadata:
   approval: U5
   requires: [S6]
   produces: ["draft_reduced.md", "reduce-report.json", "human-review.json"]
-  commands: ["docwrite scan", "docwrite suggest", "docwrite diff", "docwrite review open", "docwrite review submit", "docwrite stage done"]
+  commands: ["docwrite scan", "docwrite suggest", "docwrite diff", "docwrite review open", "docwrite review submit", "docwrite review extend", "docwrite stage done"]
 ---
 # S7 降重
 
@@ -22,12 +22,14 @@ metadata:
 
 1. `docwrite scan draft.md --json` 看热点
 2. `docwrite suggest draft.md --json`：**只看线索，不照着替换**
-3. 复制 draft.md 为 draft_reduced.md
-4. **用 edit 工具逐段重写**（不是逐词替换），禁止脚本批量替换
-5. 每批 `docwrite diff draft.md draft_reduced.md --checkpoint`
-6. `docwrite review open --stage S7 --doc draft_reduced.md`，派 subagent 评审
-7. `docwrite review submit --id <id>`
-8. `docwrite approve U4` 后 `docwrite stage done S7`
+3. 先判断初稿是否已经达标：三轴都低、没有鱼八股、没有词表热点，就不要为了修改率硬改；
+   可以保留原文并请用户确认 `stage waive S7`（软门禁），或直接把原文送 S7 评审。
+4. 复制 draft.md 为 draft_reduced.md
+5. **用 edit 工具逐段重写**（不是逐词替换），禁止脚本批量替换
+6. 每批 `docwrite diff draft.md draft_reduced.md --checkpoint`
+7. `docwrite review open --stage S7 --doc draft_reduced.md`，派 subagent 评审
+8. `docwrite review submit --id <id>`
+9. `docwrite approve U4` 后 `docwrite stage done S7`
 
 ## 改写原则（先读再改）
 
@@ -42,18 +44,26 @@ metadata:
 - **补事实**：时间、地点、人物、数字、失败/异常；不知道就不写。
 - **节奏**：长句拆短、短句接长；一段最多一个连接词。
 
+## 修改率不是目标
+
+- 修改率/检查点默认**不设下限**；它们只是诊断值，不是质量指标。
+- 初稿已经写得好，就保留它；不要为了 40% 把好句子拆坏、把术语换乱。
+- 只有项目在 `docwrite.config.json` 显式设置 `modificationRateMin` /
+  `minDiffCheckpoints` 时，才按该下限检查；报错会写明“项目配置下限”。
+- 禁止为了凑修改率做同义改写、无意义换序、拆句凑数；这属于“做作”，评审应直接判 revise。
+
 ## 完成判据
 
-- 修改率 ≥ 40%
-- 检查点 ≥3
-- 三轴 ≤ 阈值
+- 三轴 ≤ 阈值（主门禁）
 - reviewer=subagent
 - 上下文衔接：相邻段落指代/逻辑不断裂；无鱼八股结构
+- 如果项目显式配置了 `modificationRateMin` / `minDiffCheckpoints`，再满足该下限
 
 ## 失败怎么办
 
 - 词表替换导致上下文割裂：回滚该段，按句重写；不许继续替换
 - 三轴超标：继续 edit；不许改阈值、不许换脚本
+- 修改率低：**不是失败**；先看三轴和热点，只有项目显式设了下限才继续改
 
 ## 请求确认
 

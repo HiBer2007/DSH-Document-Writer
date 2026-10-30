@@ -140,8 +140,8 @@ S1 约束 → S2 规格 → S3 素材 → S4 提纲 → S5 初稿(md)
 | 产物 | `draft_reduced.md`、`reduce-report.json`、`human-review.json` |
 | 方式 | 改写由**模型本人逐段 `edit`**；评审由**独立子代理（新上下文）**按 `rules/human-rubric.md` 打分；CLI 只提供扫描、建议、比对、判据 |
 | 执行者 | 改写 = 模型本人；评审 = 子代理；脚本、扩展、子代理代写一律禁止 |
-| 步骤 | ① `cp draft.md draft_reduced.md` ② `scan` 出热点 ③ 逐段 `edit`（禁同义词机械替换）④ 每批 `diff` ⑤ `review open` ⑥ 派子代理评审 ⑦ revise → 回 ③；pass → `reduce check` |
-| 检查 | 修改率 ≥ 阈值；保护区改动 = 0；检查点 ≥ 3；单检查点改动 ≤ 30%；三轴均 ≤ 阈值；`reviewer=subagent` |
+| 步骤 | ① 先判断初稿是否已达标；达标则保留原文/申请 waive ② `cp draft.md draft_reduced.md` ③ `scan` 出热点 ④ 逐段 `edit` ⑤ 每批 `diff` ⑥ `review open` ⑦ 派子代理评审 ⑧ revise → 回 ④；pass → `reduce check` |
+| 检查 | 三轴均 ≤ 阈值；`reviewer=subagent`；保护区改动 = 0；上下文/鱼八股；修改率与检查点默认不设下限，只有项目显式配置时才检查 |
 | 命令 | `docwrite scan`、`docwrite suggest`、`docwrite diff`、`docwrite review open --stage S7`、`docwrite review submit --id <reviewId>`、`docwrite review extend --stage S7 ...`、`docwrite reduce check` |
 | 确认 | U5（进入前确认范围与目标）、U4（评审结论） |
 | 失败 | 三轴任一超标 → 继续 edit；主代理自评 → `exit 3`；不许改阈值、不许换脚本 |
@@ -263,8 +263,9 @@ scan → edit 一段 → diff → … → 自查达标 → review open → 子�
    └─ pass   → reduce check → done
 ```
 
-- 每次 `diff` 记一个检查点，`reduce check` 要求 ≥ 3 个检查点。
-- 修改率不足时**继续 edit**，不许调阈值、不许换脚本。
+- 每次 `diff` 记一个检查点；默认不要求检查点数量，项目显式设 `minDiffCheckpoints` 时才检查。
+- 修改率默认**不设下限**；它是诊断值，不是目标。只有项目显式设 `modificationRateMin` 时才检查。
+  初稿已经写得好，就保留它；不要为凑修改率把好句子拆坏。
 
 ### 5.3 预算
 
@@ -274,7 +275,8 @@ scan → edit 一段 → diff → … → 自查达标 → review open → 子�
 | `maxTotalRevisions` | 8 | 整个项目累计回退上限 |
 | `maxRoundsPerReview` | 3 | 同一评审最多出 3 次 verdict |
 | `maxReviewExtraRounds` | 2 | 用户确认后每阶段最多追加的评审轮次 |
-| `minDiffCheckpoints` | 3 | S7 至少 3 个检查点 |
+| `minDiffCheckpoints` | 0 | S7 检查点下限；0 = 不强制（可选过程保底） |
+| `modificationRateMin` | 0 | S7 修改率下限；0 = 不强制（可选过程保底） |
 | `maxChangedRatioPerCheckpoint` | 0.30 | 单检查点改动段落占比上限（防批量替换） |
 
 耗尽 → `blocked`，三选一：`unblock --reset-edge` / 降标准（仅软门禁）/ `archive`。
@@ -429,7 +431,7 @@ docwrite stage waive S7 --by user --quote "这篇不用降重，我自己改"
 | 产物哈希 | `done` 记录 sha256；`verify` 重算，不符标 `stale` |
 | 时间单调 | 阶段完成时间必须递增 |
 | 转换顺序 | docx mtime 必须晚于 S7 done 时间；否则 `wrong-order` |
-| 亲手降重 | 检查点 ≥3；单检查点改动段落 ≤30%；无 `reduce --apply` 命令可调 |
+| 亲手降重 | 三轴独立评审；单检查点改动段落 ≤30%；无 `reduce --apply`；修改率/检查点默认不设下限 |
 | 自评无效 | `review submit` 要求 `reviewer=subagent` + 合法 `reviewId`；主代理提交直接拒绝 |
 | 三轴留痕 | `human-review.json` 记录三轴分数与命中信号；verify 核对阈值 |
 | 交叉引用 | S6 比对 spec 章节 vs draft 标题；S10 比对 constraints vs 产物 |
@@ -529,13 +531,13 @@ docwrite mode install|status|uninstall
     "maxLoopsPerEdge": 3,
     "maxTotalRevisions": 8,
     "maxRoundsPerReview": 3,
-    "minDiffCheckpoints": 3,
+    "minDiffCheckpoints": 0,
     "maxChangedRatioPerCheckpoint": 0.30,
     "requireApprovals": true
   },
   "thresholds": {
     "aiRiskMax": 0.35,
-    "modificationRateMin": 0.40,
+    "modificationRateMin": 0,
     "wordBudgetTolerance": 0.20
   },
   "humanLikeness": {

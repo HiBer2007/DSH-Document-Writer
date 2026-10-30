@@ -238,11 +238,11 @@ test('review：open 生成评审包，主代理自评被拒，subagent 结论落
   })
 })
 
-test('S7 检查：修改率、检查点、三轴评审缺一不可', () => {
+test('S7 检查：默认不强制改动率/检查点，三轴评审是主门禁', () => {
   withRoot((root) => {
     const { dir, state } = initProject({ root, name: 'demo' })
     writeFileSync(join(dir, 'draft.md'), '第一段内容。\n\n第二段内容。')
-    writeFileSync(join(dir, 'draft_reduced.md'), '完全不同的写法。\n\n换了一种表达方式。')
+    writeFileSync(join(dir, 'draft_reduced.md'), '第一段内容。\n\n第二段内容。')
     writeFileSync(join(dir, 'reduce-report.json'), '{}')
     writeFileSync(
       join(dir, 'human-review.json'),
@@ -252,17 +252,32 @@ test('S7 检查：修改率、检查点、三轴评审缺一不可', () => {
         axes: { aiRate: { score: 0.2 }, aiFlavor: { score: 0.2 }, machineFlavor: { score: 0.2 } },
       }),
     )
-    const config = loadConfig(root)
 
-    const before = checkStage(dir, state, 'S7', config)
-    assert.equal(before.ok, false)
-    assert.ok(before.errors.some((e) => e.includes('检查点')))
+    // 默认 0：初稿已经达标时，原样保留也能过，不逼模型为修改率硬改。
+    assert.equal(checkStage(dir, state, 'S7', loadConfig(root)).ok, true)
 
-    appendEvent(dir, { type: 'reduce.checkpoint', rate: 0.5 })
-    appendEvent(dir, { type: 'reduce.checkpoint', rate: 0.55 })
-    appendEvent(dir, { type: 'reduce.checkpoint', rate: 0.6 })
-    const after = checkStage(dir, state, 'S7', config)
-    assert.equal(after.ok, true, after.errors.join(';'))
+    // 只有项目显式配置检查点下限时才要求过程证据。
+    writeFileSync(
+      join(root, 'docwrite.config.json'),
+      JSON.stringify({ workflow: { minDiffCheckpoints: 2 } }),
+    )
+    const checkpointFloor = checkStage(dir, state, 'S7', loadConfig(root))
+    assert.equal(checkpointFloor.ok, false)
+    assert.ok(checkpointFloor.errors.some((error) => error.includes('检查点')))
+    appendEvent(dir, { type: 'reduce.checkpoint', rate: 0.1 })
+    appendEvent(dir, { type: 'reduce.checkpoint', rate: 0.2 })
+    assert.equal(checkStage(dir, state, 'S7', loadConfig(root)).ok, true)
+
+    // 只有项目显式配置修改率下限时才要求改动量。
+    writeFileSync(
+      join(root, 'docwrite.config.json'),
+      JSON.stringify({ thresholds: { modificationRateMin: 0.4 } }),
+    )
+    const rateFloor = checkStage(dir, state, 'S7', loadConfig(root))
+    assert.equal(rateFloor.ok, false)
+    assert.ok(rateFloor.errors.some((error) => error.includes('修改率')))
+    writeFileSync(join(dir, 'draft_reduced.md'), '完全不同的写法。\n\n换了一种表达方式。')
+    assert.equal(checkStage(dir, state, 'S7', loadConfig(root)).ok, true)
   })
 })
 

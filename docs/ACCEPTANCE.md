@@ -1,6 +1,6 @@
 # ACCEPTANCE — 验收报告
 
-> 对应 `docs/PLAN.md` 的 M1–M10、追加的 PDF/ppt 包装，以及 R1–R8。
+> 对应 `docs/PLAN.md` 的 M1–M10、追加的 PDF/ppt 包装，以及 R1–R9。
 
 ## 结论
 
@@ -29,11 +29,11 @@
 | 追加 评审轮次 | `test/project.test.mjs`、`test/desktop-plugin-runtime.test.mjs`；3 轮后 open 被拒；非用户/空 quote/未到上限/有 open 评审均拒绝；用户确认 +1 后第 4 轮可开，总追加 2 轮后拒绝 |
 | 追加 开源 | `README.md`、`LICENSE`、`.gitignore`；GitHub `HiBer2007/DSH-Document-Writer`，topics 含 `dsh-plugin` |
 
-## R1–R8 对应
+## R1–R9 对应
 
 | 规则 | 落地 | 证据 |
 | --- | --- | --- |
-| R1 模型亲手 edit | CLI 无 `reduce --apply`；S7 要求检查点 ≥3、修改率 ≥40%、三轴评审 | `src/core/checks.mjs`、`test/project.test.mjs` |
+| R1 模型亲手 edit | CLI 无 `reduce --apply`；S7 以三轴评审为主门禁；修改率/检查点默认不设下限，只在项目显式配置时作可选过程保底 | `src/core/checks.mjs`、`test/project.test.mjs` |
 | R2 用户深度参与 | 8 个 U 确认点；缺确认 exit 6；approve 必须 `--by user --quote` | `src/core/state.mjs` |
 | R3 先降重后转换 | `compose` 要求 S7 done/waived/excluded；否则 exit 3 | `src/commands/misc.mjs`、`test/misc.test.mjs` |
 | R4 废弃 Python | 新工具链零 Python 依赖；ppt-master 仅子进程调用 | `package.json` |
@@ -41,6 +41,7 @@
 | R6 素材后补 | `source declare/resolve/status`；后补标 stale | `test/sources.test.mjs` |
 | R7 三味同除 | 三轴 rubric + 扫描代理分 + `human-review.json` 阈值检查 | `rules/human-rubric.md` |
 | R8 独立评审 | `review open/submit`；reviewer 必须 subagent（S9 允许 cli）；自评 exit 3 | `src/core/review.mjs` |
+| R9 评审轮次可追加但不可自批 | 每阶段默认 3 轮；用户确认后 `review extend`，最多 +2；模型不能自己加 | `src/core/review.mjs`、`test/project.test.mjs` |
 
 ## 命令清单（已实现）
 
