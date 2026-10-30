@@ -277,6 +277,23 @@ export function apply(ctx, config) {
     )
   }
 
+  /** 把插件内置的 skill 库补齐到工作区；不覆盖用户已改过的 skill。 */
+  function ensureWorkspaceSkills(root) {
+    const source = join(packageDir, 'skills')
+    if (!existsSync(source)) return 0
+    let copied = 0
+    const target = join(root, '.dsh', 'skills')
+    for (const entry of readdirSync(source, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      const destination = join(target, entry.name)
+      if (existsSync(destination)) continue
+      mkdirSync(target, { recursive: true })
+      cpSync(join(source, entry.name), destination, { recursive: true })
+      copied += 1
+    }
+    return copied
+  }
+
   /** 同步取某个 Agent 当前会话的工作区；取不到就回退到显式配置。 */
   function currentSessionRoot(agent) {
     if (!agent) return configuredRoot
@@ -618,20 +635,7 @@ export function apply(ctx, config) {
         const result = await callCli(argv)
 
         // 工作区是空的时，把插件内置的 skill 库复制进项目，模型才能看到 S1 的 schema。
-        let skillsCopied = 0
-        const skillsSource = join(packageDir, 'skills')
-        if (existsSync(skillsSource)) {
-          const skillsTarget = join(root, '.dsh', 'skills')
-          for (const entry of readdirSync(skillsSource, { withFileTypes: true })) {
-            if (!entry.isDirectory()) continue
-            const destination = join(skillsTarget, entry.name)
-            if (existsSync(destination)) continue
-            mkdirSync(skillsTarget, { recursive: true })
-            cpSync(join(skillsSource, entry.name), destination, { recursive: true })
-            skillsCopied += 1
-          }
-        }
-
+        const skillsCopied = ensureWorkspaceSkills(root)
         return { ok: true, project: name, skillsCopied, output: result.stdout.trim() }
       },
     }),
@@ -657,24 +661,26 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
-        const { resolveProject, callCliJson, callCli, runCli } = await toolContext(exec)
+        const { root, resolveProject, callCliJson, callCli, runCli } = await toolContext(exec)
         const name = resolveProject(args?.project)
+        const skillsCopied = ensureWorkspaceSkills(root)
         const action = typeof args?.action === 'string' ? args.action : 'template'
         if (action === 'template') {
           const template = await callCliJson(['constraints', 'template', '--project', name])
-          return { ok: true, project: name, template }
+          return { ok: true, project: name, skillsCopied, template }
         }
         if (action === 'init') {
           const argv = ['constraints', 'init', '--project', name]
           if (args?.force === true) argv.push('--force')
           const result = await callCli(argv)
-          return { ok: true, project: name, output: result.stdout.trim() }
+          return { ok: true, project: name, skillsCopied, output: result.stdout.trim() }
         }
         if (action === 'check') {
           const result = await runCli(['constraints', 'check', '--project', name])
           return {
             ok: result.exitCode === 0,
             project: name,
+            skillsCopied,
             output: (result.stderr || result.stdout).trim(),
           }
         }

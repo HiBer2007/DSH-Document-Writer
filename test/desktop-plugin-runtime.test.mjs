@@ -345,6 +345,8 @@ test('desktop Host 插件：constraints 工具返回模板并通过检查', asyn
     const template = await tool.execute({ action: 'template', project: '测试' }, context)
     assert.ok(template.template.items.length > 0)
     assert.ok(template.template.items[0].source)
+    assert.ok(template.skillsCopied >= 1)
+    assert.ok(existsSync(join(root, '.dsh', 'skills', 'docwrite-constraints', 'SKILL.md')))
 
     const init = await tool.execute({ action: 'init', project: '测试' }, context)
     assert.equal(init.ok, true)
