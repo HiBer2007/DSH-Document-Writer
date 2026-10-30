@@ -6,7 +6,7 @@
 // 3. 为 Web GUI 的「文档工坊」面板提供 /docwrite/state 只读快照。
 //
 // 阶段表与 ENTRY_APPROVAL 必须和 src/core/stages.mjs 保持一致；test/desktop-plugin.test.mjs 会对比。
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -607,7 +607,7 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
-        const { callCli } = await toolContext(exec)
+        const { root, callCli } = await toolContext(exec)
         const name = String(args?.name ?? '').trim()
         if (!name) throw new Error('name 不能为空')
         const argv = ['init', name]
@@ -616,7 +616,69 @@ export function apply(ctx, config) {
           if (typeof value === 'string' && value.length > 0) argv.push(`--${key}`, value)
         }
         const result = await callCli(argv)
-        return { ok: true, project: name, output: result.stdout.trim() }
+
+        // 工作区是空的时，把插件内置的 skill 库复制进项目，模型才能看到 S1 的 schema。
+        let skillsCopied = 0
+        const skillsSource = join(packageDir, 'skills')
+        if (existsSync(skillsSource)) {
+          const skillsTarget = join(root, '.dsh', 'skills')
+          for (const entry of readdirSync(skillsSource, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue
+            const destination = join(skillsTarget, entry.name)
+            if (existsSync(destination)) continue
+            mkdirSync(skillsTarget, { recursive: true })
+            cpSync(join(skillsSource, entry.name), destination, { recursive: true })
+            skillsCopied += 1
+          }
+        }
+
+        return { ok: true, project: name, skillsCopied, output: result.stdout.trim() }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.tools.register({
+      name: 'docwrite_constraints',
+      description:
+        '约束文件 constraints.json 的工具入口：template 返回可直接抄的合法 JSON；init 在当前工作区写骨架；check 校验字段、重复 id 与冲突裁决。不要凭记忆猜 schema。',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['template', 'init', 'check'],
+            description: 'template（默认）/ init / check',
+          },
+          project: projectParam,
+          force: { type: 'boolean', description: 'init 时覆盖已存在的 constraints.json' },
+        },
+        additionalProperties: false,
+      },
+      output: textOutput((value) => JSON.stringify(value, null, 2)),
+      async execute(args, exec) {
+        const { resolveProject, callCliJson, callCli, runCli } = await toolContext(exec)
+        const name = resolveProject(args?.project)
+        const action = typeof args?.action === 'string' ? args.action : 'template'
+        if (action === 'template') {
+          const template = await callCliJson(['constraints', 'template', '--project', name])
+          return { ok: true, project: name, template }
+        }
+        if (action === 'init') {
+          const argv = ['constraints', 'init', '--project', name]
+          if (args?.force === true) argv.push('--force')
+          const result = await callCli(argv)
+          return { ok: true, project: name, output: result.stdout.trim() }
+        }
+        if (action === 'check') {
+          const result = await runCli(['constraints', 'check', '--project', name])
+          return {
+            ok: result.exitCode === 0,
+            project: name,
+            output: (result.stderr || result.stdout).trim(),
+          }
+        }
+        throw new Error(`未知 action：${action}（可用 template / init / check）`)
       },
     }),
   )

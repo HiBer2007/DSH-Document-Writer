@@ -4,8 +4,8 @@
 
 1. **预设**：注册 `docwrite`（显示名「文档工坊」），组合来自
    `presets/docwrite/agent.cordis.yml`，与 TUI 共用同一份 12 阶段契约。
-2. **封装工具**（11 个）：`docwrite_init`、`docwrite_status`、`docwrite_next`、
-   `docwrite_stage_enter`、`docwrite_stage_done`、`docwrite_approve`、
+2. **封装工具**（12 个）：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、
+   `docwrite_next`、`docwrite_stage_enter`、`docwrite_stage_done`、`docwrite_approve`、
    `docwrite_review_open`、`docwrite_review_submit`、`docwrite_visual_check`、
    `docwrite_verify`、`docwrite_deliver`。
    工具不依赖安装机上的固定路径：CLI 代码在插件包的 `cli/` 里，`cwd` 是当前会话工作区；
@@ -34,7 +34,9 @@ target: <绝对路径>\harness\docwrite-desktop
 ## 工作区与 CLI
 
 - **工作区**只放文档：`projects/<name>/`、模板、素材、交付物。
-- **CLI** 在插件包 `cli/` 内（`bin/`、`src/`、`rules/`），不读取其他工作区。
+- **CLI 与 skill 库**在插件包内（`cli/`、`skills/`），不读取其他工作区。
+- 空工作区运行 `docwrite_init` 时，会把插件 `skills/` 里缺失的 skill 复制到
+  `<workspace>/.dsh/skills`，模型随后能看到 S1 的约束 schema。
 - 工具执行时用 `ctx.workingDirectory.ensure(agent)` 解析会话目录，并以它为 `cwd` 调 CLI。
 - GUI 面板通过 `useWorkspaces` 取当前工作区路径，显式传给 `/docwrite/state`；
   没有传 `root` 时路由返回 503，不会猜测或读取别的目录。
@@ -57,9 +59,10 @@ $root = 'F:\你的文档工作区'
 Invoke-RestMethod ("http://127.0.0.1:14558/docwrite/state?root=" + [uri]::EscapeDataString($root))
 
 # 工具已挂载（在会话里）
-#   docwrite_init / docwrite_status / docwrite_next / docwrite_stage_enter
-#   docwrite_stage_done / docwrite_approve / docwrite_review_open
-#   docwrite_review_submit / docwrite_visual_check / docwrite_verify / docwrite_deliver
+#   docwrite_init / docwrite_constraints / docwrite_status / docwrite_next
+#   docwrite_stage_enter / docwrite_stage_done / docwrite_approve
+#   docwrite_review_open / docwrite_review_submit / docwrite_visual_check
+#   docwrite_verify / docwrite_deliver
 
 # 门禁：S8 前写 <workspace>/projects/<name>/**/*.docx 应被拒绝
 ```

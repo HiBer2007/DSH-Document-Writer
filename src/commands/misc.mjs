@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, join, resolve } from 'node:path'
 import { CliError, EXIT } from '../core/errors.mjs'
 import { parseArgs } from '../core/args.mjs'
-import { checkStage } from '../core/checks.mjs'
+import { checkStage, constraintTemplate } from '../core/checks.mjs'
 import { fillFields } from '../core/docx-ops.mjs'
 import { markdownToDocxBytes } from '../core/md.mjs'
 import { loadConfig, statusOf } from '../core/state.mjs'
@@ -29,12 +29,31 @@ export async function constraintsCommand(argv) {
     const { flags } = parseArgs(rest)
     const { dir } = projectFromFlags(flags)
     const path = join(dir, 'constraints.json')
-    if (!existsSync(path)) throw new CliError('缺少 constraints.json', EXIT.PREREQ)
+    if (!existsSync(path)) throw new CliError('缺少 constraints.json；先运行 docwrite constraints init', EXIT.PREREQ)
     console.log(readFileSync(path, 'utf8'))
     return EXIT.OK
   }
+  if (sub === 'template') {
+    const { flags } = parseArgs(rest)
+    const { state } = projectFromFlags(flags)
+    console.log(JSON.stringify(constraintTemplate(state.project), null, 2))
+    return EXIT.OK
+  }
+  if (sub === 'init') {
+    const { flags } = parseArgs(rest)
+    const { dir, state } = projectFromFlags(flags)
+    const path = join(dir, 'constraints.json')
+    if (existsSync(path) && !flags.force) {
+      throw new CliError('constraints.json 已存在；要覆盖请加 --force', EXIT.PREREQ)
+    }
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, `${JSON.stringify(constraintTemplate(state.project), null, 2)}\n`, 'utf8')
+    console.log(`✅ 已写入约束模板：${path}`)
+    console.log('   下一步：用 edit 把 items 改成真实约束，再 docwrite constraints check')
+    return EXIT.OK
+  }
   if (sub === 'check') return runCheck('S1', rest)
-  throw new CliError('用法：docwrite constraints show|check', EXIT.USAGE)
+  throw new CliError('用法：docwrite constraints show|template|init|check', EXIT.USAGE)
 }
 
 export async function specCommand(argv) {

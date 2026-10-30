@@ -4,7 +4,7 @@
 
 ## 结论
 
-**通过。** 118 项测试全绿；12 阶段端到端测试跑通并产出 `verify-report.md`（PASS）与 `deliver/`；三个存量项目已迁移并留下对比报告；DSH 工作模式已安装，skill 库已被 DSH 目录识别；ppt-master 包装在真实 12 页项目上跑通；PDF 导出完成可选后端接入与失败路径验证；TUI 与 Desktop 均通过声明式 `preset-docwrite` 注册「文档工坊」，Desktop 另带 11 个封装工具、S8 硬门禁、只读 GUI 面板与 `docwrite_visual_check` 人工验收工具；工具按当前会话工作区运行，CLI 打包在插件内；降重规则明确“词表只作线索”，并加入鱼八股扫描与规避要求。
+**通过。** 123 项测试全绿；12 阶段端到端测试跑通并产出 `verify-report.md`（PASS）与 `deliver/`；三个存量项目已迁移并留下对比报告；DSH 工作模式已安装，skill 库已被 DSH 目录识别；ppt-master 包装在真实 12 页项目上跑通；PDF 导出完成可选后端接入与失败路径验证；TUI 与 Desktop 均通过声明式 `preset-docwrite` 注册「文档工坊」，Desktop 另带 12 个封装工具、S8 硬门禁、只读 GUI 面板与 `docwrite_visual_check` 人工验收工具；工具按当前会话工作区运行，CLI 与 skill 库打包在插件内；降重规则明确“词表只作线索”，并加入鱼八股扫描与规避要求。
 
 ## 里程碑证据
 
@@ -23,8 +23,9 @@
 | 追加 PDF | `test/pdf.test.mjs`；kit 接口单测 + 无后端 exit 4；本机未装后端，真实转换待装 |
 | 追加 ppt 包装 | `test/ppt.test.mjs`；真实项目 `ppt build` 12 页 → 52,183 字节 PPTX |
 | 追加 TUI 注册 | `test/mode.test.mjs`；`dsh --profile dsh-tui --dump-config` 含 `preset-docwrite`；内联 preset 与包解析通过 |
-| 追加 Desktop | `test/desktop-plugin.test.mjs`、`test/desktop-plugin-runtime.test.mjs`；`/docwrite/presets` 返回 `docwrite resolved=true, broken=null`；`sidebar.panellist` 与 `main` 槽位 active；S8 前 docx 写入实测拒绝；`docwrite_visual_check` 验收结论实测；工具按会话工作区运行，工作区无 CLI 时用插件包内 `cli/`，无 `root` 的 `/docwrite/state` 返回 503 |
+| 追加 Desktop | `test/desktop-plugin.test.mjs`、`test/desktop-plugin-runtime.test.mjs`；`/docwrite/presets` 返回 `docwrite resolved=true, broken=null`；`sidebar.panellist` 与 `main` 槽位 active；S8 前 docx 写入实测拒绝；`docwrite_visual_check` 验收结论实测；工具按会话工作区运行，工作区无 CLI 时用插件包内 `cli/`，无 `root` 的 `/docwrite/state` 返回 503；空工作区 `docwrite_init` 会把 `skills/` 复制到 `.dsh/skills` |
 | 追加 降重 v2 | `test/scan.test.mjs`、`test/suggest.test.mjs`；鱼八股维度、结构线索、“词表只是线索”提示均有断言；`rules/ai-detection.md` 汇总 AI 率检测论文与边界 |
+| 追加 约束契约 | `test/constraints.test.mjs`；`constraints init/template/check`；缺字段、重复 id、非法 priority、冲突缺 resolution 均有报错 |
 | 追加 开源 | `README.md`、`LICENSE`、`.gitignore`；GitHub `HiBer2007/DSH-Document-Writer`，topics 含 `dsh-plugin` |
 
 ## R1–R8 对应
@@ -48,7 +49,7 @@ review open|submit|status / verify / deliver / unblock
 scope show|set / source add|declare|resolve|status
 ext list|install|enable|disable / skills list|show / dispatch
 docx read|inspect|fill|replace|md / pptx read|notes|fill / from-md
-scan / suggest / diff / compose / constraints show|check
+scan / suggest / diff / compose / constraints show|template|init|check
 spec|outline|draft|reduce check / history / archive
 ppt init|import|validate|info|build|check
 pdf <docx> [out.pdf] [--backend auto|kit|soffice]

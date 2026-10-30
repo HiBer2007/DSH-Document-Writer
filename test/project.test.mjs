@@ -79,7 +79,12 @@ test('S1 检查：缺 constraints.json 失败，补齐后通过', () => {
     const config = loadConfig(root)
     assert.equal(checkStage(dir, state, 'S1', config).ok, false)
 
-    writeFileSync(join(dir, 'constraints.json'), JSON.stringify({ items: [{ id: 'c1' }] }))
+    writeFileSync(
+      join(dir, 'constraints.json'),
+      JSON.stringify({
+        items: [{ id: 'c1', type: 'format', priority: 'hard', source: '模板', check: '≤8000 字' }],
+      }),
+    )
     const check = checkStage(dir, state, 'S1', config)
     assert.equal(check.ok, true, check.errors.join(';'))
   })
@@ -88,7 +93,12 @@ test('S1 检查：缺 constraints.json 失败，补齐后通过', () => {
 test('硬门禁不可豁免，软门禁可豁免', () => {
   withRoot((root) => {
     const { dir, state } = initProject({ root, name: 'demo' })
-    writeFileSync(join(dir, 'constraints.json'), JSON.stringify({ items: [{ id: 'c1' }] }))
+    writeFileSync(
+      join(dir, 'constraints.json'),
+      JSON.stringify({
+        items: [{ id: 'c1', type: 'format', priority: 'hard', source: '模板', check: '≤8000 字' }],
+      }),
+    )
     markDone(dir, state, 'S1', { artifacts: ['constraints.json'] })
 
     assert.equal(codeOf(() => waiveStage(dir, state, 'S1', { by: 'user', quote: 'x' })), 3)

@@ -86,7 +86,7 @@ const HELP = `docwrite — 文档工坊
   mode install|status|uninstall            安装/查看/卸载「文档工坊」预设
   skills list|show <id>                    skill 库
   dispatch <S0..S11> [--json]              查某阶段该用哪个 skill
-  constraints show|check                   约束查看/检查
+  constraints show|template|init|check        约束查看/模板/初始化/检查
   spec check | outline check | draft check | reduce check
   compose [--from draft_reduced.md] [--template f.docx --fields-file f.json]
   pdf <docx> [out.pdf] [--backend auto|kit|soffice] [--soffice 路径]

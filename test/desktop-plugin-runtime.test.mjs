@@ -137,7 +137,7 @@ function makeCtx({
   return { ctx, tools, guards, routes, questions }
 }
 
-test('desktop Host 插件：注册 11 个 docwrite 工具与两条只读路由', () => {
+test('desktop Host 插件：注册 12 个 docwrite 工具与两条只读路由', () => {
   const { root, dir } = makeRoot()
   try {
     const { ctx, tools, routes } = makeCtx()
@@ -146,6 +146,7 @@ test('desktop Host 插件：注册 11 个 docwrite 工具与两条只读路由',
       tools.map((tool) => tool.name),
       [
         'docwrite_init',
+        'docwrite_constraints',
         'docwrite_status',
         'docwrite_next',
         'docwrite_stage_enter',
@@ -325,7 +326,31 @@ test('desktop Host 插件：docwrite_init 在当前工作区创建项目', async
     )
     assert.equal(value.ok, true)
     assert.ok(existsSync(join(root, 'projects', '新项目', '.run', 'state.json')))
+    assert.ok(existsSync(join(root, '.dsh', 'skills', 'docwrite-constraints', 'SKILL.md')))
+    assert.ok(value.skillsCopied >= 1)
     assert.ok(!existsSync(join(root, 'projects', '新项目', 'build', 'x.docx')))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop Host 插件：constraints 工具返回模板并通过检查', async () => {
+  const { root } = makeRoot()
+  try {
+    const { ctx, tools } = makeCtx({ realSubprocess: true, sessionCwd: root })
+    apply(ctx, {})
+    const tool = tools.find((entry) => entry.name === 'docwrite_constraints')
+    const context = { agent: { id: 'agent-1' }, signal: new AbortController().signal }
+
+    const template = await tool.execute({ action: 'template', project: '测试' }, context)
+    assert.ok(template.template.items.length > 0)
+    assert.ok(template.template.items[0].source)
+
+    const init = await tool.execute({ action: 'init', project: '测试' }, context)
+    assert.equal(init.ok, true)
+
+    const check = await tool.execute({ action: 'check', project: '测试' }, context)
+    assert.equal(check.ok, true)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

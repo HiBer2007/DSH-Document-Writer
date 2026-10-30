@@ -37,7 +37,9 @@ test('端到端：12 阶段跑通、终检 PASS、交付', () => {
     approve(dir, state, 'U0', { by: 'user', quote: '任务卡没问题' })
 
     enterStage(dir, state, 'S1')
-    writeJson(dir, 'constraints.json', { items: [{ id: 'c1', type: 'format' }] })
+    writeJson(dir, 'constraints.json', {
+      items: [{ id: 'c1', type: 'format', priority: 'hard', source: '模板', check: '≤8000 字' }],
+    })
     done('S1')
     approve(dir, state, 'U1', { by: 'user', quote: '约束没问题' })
 
