@@ -24,7 +24,7 @@
 | 追加 ppt 包装 | `test/ppt.test.mjs`；真实项目 `ppt build` 12 页 → 52,183 字节 PPTX |
 | 追加 TUI 注册 | `test/mode.test.mjs`；`dsh --profile dsh-tui --dump-config` 含 `preset-docwrite`；`@deepseek-ai/dsh-agent-preset` 与 include 包从 dsh 安装目录可解析 |
 | 追加 Desktop | `test/desktop-plugin.test.mjs`、`test/desktop-plugin-runtime.test.mjs`；`/docwrite/presets` 返回 `docwrite resolved=true, broken=null`；`sidebar.panellist` 与 `main` 槽位 active；S8 前 docx 写入实测拒绝；`docwrite_visual_check` 验收结论实测 |
-| 追加 降重 v2 | `test/scan.test.mjs`、`test/suggest.test.mjs`；鱼八股维度、结构线索、“词表只是线索”提示均有断言 |
+| 追加 降重 v2 | `test/scan.test.mjs`、`test/suggest.test.mjs`；鱼八股维度、结构线索、“词表只是线索”提示均有断言；`rules/ai-detection.md` 汇总 AI 率检测论文与边界 |
 | 追加 开源 | `README.md`、`LICENSE`、`.gitignore`；GitHub `HiBer2007/DSH-Document-Writer`，topics 含 `dsh-plugin` |
 
 ## R1–R8 对应

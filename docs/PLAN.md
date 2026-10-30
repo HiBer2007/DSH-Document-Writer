@@ -154,6 +154,7 @@ K:\AI文档编写\
 ├── rules\                     评审依据与只读建议（不参与写文件）
 │   ├── human-rubric.md        三轴评分规则（AI 率 / AI 味 / 机器味 + 鱼八股）
 │   ├── machine-flavor.md      机器味清单（翻译腔、名词化、连接词机械、鱼八股）
+│   ├── ai-detection.md        AI 率检测论文、机制与使用边界
 │   └── scan-rules.json        只读扫描规则（词表 + 鱼八股大词，线索不是结论）
 ├── harness\docwrite-desktop\  DSH Desktop bundle（预设/工具/门禁/GUI 面板）
 ├── scripts\sync-desktop-preset.mjs  从 agent.cordis.yml 生成内联 preset 行
@@ -173,6 +174,8 @@ K:\AI文档编写\
 - **无写回正文的命令**：降重阶段只读；`docx replace` 在 S8 前拒绝执行。
 - **词表只作线索**：`scan`/`suggest` 的词表命中只用于定位；改写必须按句/段重写，
   禁止逐词替换。`suggest` 同时给结构线索（段落同构、句长整齐、鱼八股大词、金句结尾）。
+- **AI 率是代理分**：检测器在改写、跨模型、跨领域、中文语境下会误判；不唯分数，
+  最终以三轴评审 + 独立子代理 + 人工确认为准（见 `rules/ai-detection.md`）。
 - **鱼八股**：结构固化、正确的空话、内容同质化；命中 ≥2 类必须重写（见 `rules/machine-flavor.md` §10）。
 - **转换闸门**：`compose` 要求 S7 done（或 S7 excluded）；docx mtime 校验。
 - **确认闸门**：`stage enter` 检查所需 U-gate；`next` 返回 `pendingApproval`。

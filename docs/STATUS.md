@@ -39,6 +39,7 @@
   - `suggest` 明确标注“词表只是线索，不是替换表”，新增结构线索（段落同构、句长整齐、鱼八股大词、金句结尾）
   - `scan` 增加 `yuBagu` 维度；`rules/machine-flavor.md` §10 定义鱼八股；rubric 命中 ≥2 类必须 revise
   - `docwrite-reduce` skill 要求按句/段重写、改完读前后各一句、禁止逐词替换
+  - 新增 `rules/ai-detection.md`：GLTR / DetectGPT / Fast-DetectGPT / Binoculars / 水印 / RAID / M4 等论文与机制，明确 AI 率是代理分
 - **追加：开源发布** ✅
   - GitHub `HiBer2007/DSH-Document-Writer`，topics 含 `dsh-plugin`、`deepseek-harness`、`cordis-plugin`
   - `.gitignore` 排除 `projects/`、`OLD/`、`vendor/`、`node_modules/`；只发布工具链
