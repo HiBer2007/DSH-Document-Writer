@@ -47,6 +47,10 @@
   - `docwrite_visual_check`：阶段进度、产物清单、关键指标、正文预览做成验收卡
   - 三选一：合格 / 需要修改 / 暂不判断；不合格时收集需要修改的地方
   - 只记录人工验收意见，不替代 U 确认，也不替代 `stage done` 的 CLI 检查
+- **追加：搭配错位纳入审核** ✅
+  - `human-rubric` 轴 2 增加第 11 类“搭配错位”；`machine-flavor.md` 增加 §11
+  - S6/S7 评审 focus 明确检查形容词-名词搭配；“值钱的追问”作为标准反例
+  - `scan` 增加 `af-collocation` 规则；review/reduce skill 都写入改法与判定
 - **追加：取消 S7 统一 40% 门槛** ✅
   - `modificationRateMin` / `minDiffCheckpoints` 默认 0；只有项目显式配置时才检查
   - S7 的主门禁改为独立子代理三轴评审；初稿已达标可保留原文，或由用户确认 `waive S7`
@@ -72,7 +76,7 @@
 ## 测试
 
 ```
-npm test  →  126 tests, 0 fail
+npm test  →  127 tests, 0 fail
 ```
 
 覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。

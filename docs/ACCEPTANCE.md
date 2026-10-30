@@ -4,7 +4,7 @@
 
 ## 结论
 
-**通过。** 126 项测试全绿；12 阶段端到端测试跑通并产出 `verify-report.md`（PASS）与 `deliver/`；三个存量项目已迁移并留下对比报告；DSH 工作模式已安装，skill 库已被 DSH 目录识别；ppt-master 包装在真实 12 页项目上跑通；PDF 导出完成可选后端接入与失败路径验证；TUI 与 Desktop 均通过声明式 `preset-docwrite` 注册「文档工坊」，Desktop 另带 13 个封装工具、S8 硬门禁、只读 GUI 面板、`docwrite_visual_check` 人工验收工具与用户确认后追加评审轮次的机制；工具按当前会话工作区运行，CLI 与 skill 库打包在插件内；降重规则明确“词表只作线索”，并加入鱼八股扫描与规避要求。
+**通过。** 127 项测试全绿；12 阶段端到端测试跑通并产出 `verify-report.md`（PASS）与 `deliver/`；三个存量项目已迁移并留下对比报告；DSH 工作模式已安装，skill 库已被 DSH 目录识别；ppt-master 包装在真实 12 页项目上跑通；PDF 导出完成可选后端接入与失败路径验证；TUI 与 Desktop 均通过声明式 `preset-docwrite` 注册「文档工坊」，Desktop 另带 13 个封装工具、S8 硬门禁、只读 GUI 面板、`docwrite_visual_check` 人工验收工具与用户确认后追加评审轮次的机制；工具按当前会话工作区运行，CLI 与 skill 库打包在插件内；降重规则明确“词表只作线索”，并加入鱼八股与搭配错位扫描。
 
 ## 里程碑证据
 
@@ -26,6 +26,7 @@
 | 追加 Desktop | `test/desktop-plugin.test.mjs`、`test/desktop-plugin-runtime.test.mjs`；`/docwrite/presets` 返回 `docwrite resolved=true, broken=null`；`sidebar.panellist` 与 `main` 槽位 active；S8 前 docx 写入实测拒绝；`docwrite_visual_check` 验收结论实测；工具按会话工作区运行，工作区无 CLI 时用插件包内 `cli/`，无 `root` 的 `/docwrite/state` 返回 503；空工作区 `docwrite_init` 会把 `skills/` 复制到 `.dsh/skills` |
 | 追加 降重 v2 | `test/scan.test.mjs`、`test/suggest.test.mjs`；鱼八股维度、结构线索、“词表只是线索”提示均有断言；`rules/ai-detection.md` 汇总 AI 率检测论文与边界 |
 | 追加 约束契约 | `test/constraints.test.mjs`；`constraints init/template/check`；缺字段、重复 id、非法 priority、冲突缺 resolution 均有报错 |
+| 追加 搭配错位 | `test/scan.test.mjs`；`af-collocation` 命中“值钱的追问”；`rules/human-rubric.md` 轴 2 第 11 类、`machine-flavor.md` §11、S6/S7 评审 focus、review/reduce skill 均已写入 |
 | 追加 评审轮次 | `test/project.test.mjs`、`test/desktop-plugin-runtime.test.mjs`；3 轮后 open 被拒；非用户/空 quote/未到上限/有 open 评审均拒绝；用户确认 +1 后第 4 轮可开，总追加 2 轮后拒绝 |
 | 追加 开源 | `README.md`、`LICENSE`、`.gitignore`；GitHub `HiBer2007/DSH-Document-Writer`，topics 含 `dsh-plugin` |
 

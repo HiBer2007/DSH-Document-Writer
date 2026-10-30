@@ -63,6 +63,15 @@ test('分段与分句', () => {
   assert.equal(splitSentences('第一句。第二句！第三句？').length, 3)
 })
 
+test('搭配错位：值钱 + 抽象名词被标为 AI 味问题', () => {
+  const result = scanText('更值钱的追问有两个。\n\n第二个问题更值钱。')
+  const signals = result.hotspots.flatMap((h) => h.signals)
+  const hit = signals.find((signal) => signal.quote.includes('值钱的追问'))
+  assert.ok(hit, '应命中“值钱的追问”')
+  assert.equal(hit.group, 'aiFlavor')
+  assert.match(hit.advice, /搭配错位/)
+})
+
 test('扫描结果标注“线索不是结论”', () => {
   const result = scanText(RISKY)
   assert.match(result.note, /线索/)
