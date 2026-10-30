@@ -40,8 +40,8 @@
 9. ppt-master 作为外部 skill 模块接入，网页预览由本工具链统一接管。
 10. 打包成 DSH 预设「文档工坊」：TUI 用声明式 `preset-docwrite` 行，Desktop 用
     `harness/docwrite-desktop` bundle，一键切换。
-11. Desktop 预设带 10 个封装工具、S8 硬门禁、只读流水线面板和
-    `docwrite_visual_check` 人工验收工具。
+11. Desktop 预设带 11 个封装工具、S8 硬门禁、只读流水线面板和
+    `docwrite_visual_check` 人工验收工具；工具按当前会话工作区运行，CLI 打包在插件内。
 12. 开源到 GitHub（`HiBer2007/DSH-Document-Writer`），加 `dsh-plugin` 等 topics，
     让 DSH 用户能搜索并安装。
 
@@ -131,7 +131,7 @@ ESM，Node ≥ 20；运行时依赖 `fflate`（zip）与 `yaml`（清单校验�
 ### 6.2 目录树
 
 ```
-K:\AI文档编写\
+<repo>\
 ├── OLD\                       冻结存档（只读，不再引用）
 ├── vendor\ppt-master\         第三方工具（唯一 Python 例外，只读）
 ├── package.json               name: docwrite
@@ -157,7 +157,9 @@ K:\AI文档编写\
 │   ├── ai-detection.md        AI 率检测论文、机制与使用边界
 │   └── scan-rules.json        只读扫描规则（词表 + 鱼八股大词，线索不是结论）
 ├── harness\docwrite-desktop\  DSH Desktop bundle（预设/工具/门禁/GUI 面板）
+│   └── cli\                   插件内置 CLI 运行时（bin/src/rules）
 ├── scripts\sync-desktop-preset.mjs  从 agent.cordis.yml 生成内联 preset 行
+├── scripts\sync-desktop-cli.mjs     把 bin/src/rules 同步进插件 cli/
 ├── test\                      node:test
 ├── .dsh\skills\               DSH 自动发现的核心 skill
 ├── skills\registry.json       分派表
@@ -172,6 +174,8 @@ K:\AI文档编写\
 ### 6.3 关键设计
 
 - **无写回正文的命令**：降重阶段只读；`docx replace` 在 S8 前拒绝执行。
+- **按工作区运行**：Desktop 工具用当前会话 cwd 解析 `projects/`；CLI 打包在插件
+  `cli/`，不读取安装机上的其他工作区。GUI 面板显式把工作区 root 传给 `/docwrite/state`。
 - **词表只作线索**：`scan`/`suggest` 的词表命中只用于定位；改写必须按句/段重写，
   禁止逐词替换。`suggest` 同时给结构线索（段落同构、句长整齐、鱼八股大词、金句结尾）。
 - **AI 率是代理分**：检测器在改写、跨模型、跨领域、中文语境下会误判；不唯分数，
@@ -242,7 +246,7 @@ K:\AI文档编写\
 | M9 | 迁移三个存量项目 | 新旧产物文本一致 |
 | M10 | DSH 模式安装 + 端到端验收 | `/preset docwrite` 可用，全程走通 |
 | M11 | TUI / Desktop 声明式预设 | TUI `preset-docwrite` 行、Desktop bundle 均能挂载；预设 roster 无 broken |
-| M12 | Desktop 工具 + 门禁 + GUI + 人工验收 | 10 个工具可用；S8 前 docx 被拒；面板/验收卡可用 |
+| M12 | Desktop 工具 + 门禁 + GUI + 人工验收 | 11 个工具可用；S8 前 docx 被拒；面板/验收卡可用 |
 | M13 | 降重 v2 + 开源发布 | 词表只作线索、鱼八股规则落地；GitHub 仓库带 `dsh-plugin` topics |
 
 ## 10. 风险与取舍

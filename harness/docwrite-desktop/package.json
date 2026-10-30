@@ -16,8 +16,13 @@
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
-    "README.md"
+    "README.md",
+    "cli/**"
   ],
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "yaml": "^2.8.0"
+  },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": {

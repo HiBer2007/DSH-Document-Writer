@@ -7,10 +7,11 @@
 //
 // 阶段表与 ENTRY_APPROVAL 必须和 src/core/stages.mjs 保持一致；test/desktop-plugin.test.mjs 会对比。
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export const name = 'docwrite-harness'
-export const inject = ['tools', 'subprocess', 'webServer', 'userQuestions']
+export const inject = ['tools', 'subprocess', 'webServer', 'userQuestions', 'workingDirectory', 'sessions']
 
 export const STAGES = [
   { id: 'S0', name: '受理', gate: 'soft' },
@@ -262,11 +263,60 @@ function textOutput(render) {
 }
 
 export function apply(ctx, config) {
-  const root = resolve(typeof config?.root === 'string' ? config.root : 'K:/AI文档编写')
-  const cli = join(root, 'bin', 'docwrite.mjs')
+  const configuredRoot =
+    typeof config?.root === 'string' && config.root.trim().length > 0 ? resolve(config.root) : null
+  const packageDir = dirname(fileURLToPath(import.meta.url))
+  const bundledCli = join(packageDir, 'cli')
 
-  function projectState(project) {
-    if (typeof project !== 'string' || project.length === 0) return undefined
+  /** 文档工作区可以自带 CLI；否则用插件包内同步好的 CLI。 */
+  function cliRootFor(workspace) {
+    if (existsSync(join(workspace, 'bin', 'docwrite.mjs'))) return workspace
+    if (existsSync(join(bundledCli, 'bin', 'docwrite.mjs'))) return bundledCli
+    throw new Error(
+      '找不到 docwrite CLI：工作区没有 bin/docwrite.mjs，插件包也没有 cli/。请重装插件或把仓库一起安装。',
+    )
+  }
+
+  /** 同步取某个 Agent 当前会话的工作区；取不到就回退到显式配置。 */
+  function currentSessionRoot(agent) {
+    if (!agent) return configuredRoot
+    try {
+      if (agent.session && ctx.workingDirectory) return ctx.workingDirectory.get(agent.session)
+    } catch {
+      // 落到下面的 id 查询。
+    }
+    try {
+      if (agent.id && ctx.sessions && ctx.workingDirectory) {
+        const session = ctx.sessions.get(agent.id)
+        if (session) return ctx.workingDirectory.get(session)
+      }
+    } catch {
+      // 回退到配置。
+    }
+    return configuredRoot
+  }
+
+  /** 工具执行前解析工作区：优先会话目录，其次显式配置。 */
+  async function sessionRoot(exec) {
+    if (exec?.agent && ctx.workingDirectory && typeof ctx.workingDirectory.ensure === 'function') {
+      try {
+        return await ctx.workingDirectory.ensure(exec.agent, exec.signal)
+      } catch {
+        // 会话目录失效时回退到配置。
+      }
+    }
+    return currentSessionRoot(exec?.agent)
+  }
+
+  function requireRoot(root) {
+    if (typeof root !== 'string' || root.length === 0) {
+      throw new Error('无法确定工作区：请在已打开工作区的会话里调用，或给插件配置 root。')
+    }
+    return root
+  }
+
+  function projectState(root, project) {
+    if (!root || typeof project !== 'string' || project.length === 0) return undefined
     const path = join(root, 'projects', project, '.run', 'state.json')
     if (!existsSync(path)) return undefined
     try {
@@ -276,7 +326,8 @@ export function apply(ctx, config) {
     }
   }
 
-  function listProjects() {
+  function listProjects(root) {
+    if (!root) return []
     const dir = join(root, 'projects')
     if (!existsSync(dir)) return []
     return readdirSync(dir, { withFileTypes: true })
@@ -285,21 +336,23 @@ export function apply(ctx, config) {
       .filter((name) => existsSync(join(dir, name, '.run', 'state.json')))
   }
 
-  function resolveProject(project) {
+  function resolveProject(root, project) {
+    requireRoot(root)
     if (typeof project === 'string' && project.length > 0) {
-      if (!projectState(project)) throw new Error(`项目不存在或未初始化：${project}`)
+      if (!projectState(root, project)) throw new Error(`项目不存在或未初始化：${project}`)
       return project
     }
-    const names = listProjects()
+    const names = listProjects(root)
     if (names.length === 1) return names[0]
     if (names.length === 0) throw new Error('当前没有已初始化项目，先运行 docwrite init <项目名>')
     throw new Error(`有多个项目，请用 project 参数指定：${names.join('、')}`)
   }
 
-  function snapshot(project) {
-    const names = typeof project === 'string' && project.length > 0 ? [project] : listProjects()
+  function snapshot(root, project) {
+    requireRoot(root)
+    const names = typeof project === 'string' && project.length > 0 ? [project] : listProjects(root)
     const projects = names.map((name) => {
-      const found = projectState(name)
+      const found = projectState(root, name)
       if (!found) return { project: name, error: 'state.json 不可读' }
       let updatedAt = null
       try {
@@ -310,6 +363,21 @@ export function apply(ctx, config) {
       return summarize(found.state, updatedAt)
     })
     return { ok: true, root, generatedAt: new Date().toISOString(), projects }
+  }
+
+  /** 每个工具调用都绑定到调用者会话的工作区，而不是插件安装时的固定路径。 */
+  async function toolContext(exec) {
+    const root = requireRoot(await sessionRoot(exec))
+    return {
+      root,
+      projectState: (project) => projectState(root, project),
+      listProjects: () => listProjects(root),
+      resolveProject: (project) => resolveProject(root, project),
+      snapshot: (project) => snapshot(root, project),
+      runCli: (args) => runCli(root, exec, args),
+      callCli: (args) => callCli(root, exec, args),
+      callCliJson: (args) => callCliJson(root, exec, args),
+    }
   }
 
   // ── GUI 数据路由（只读） ──────────────────────────────────────────────
@@ -367,7 +435,23 @@ export function apply(ctx, config) {
         try {
           const url = new URL(typeof req.url === 'string' ? req.url : '/docwrite/state', 'http://127.0.0.1')
           const project = url.searchParams.get('project')
-          const body = JSON.stringify(snapshot(project ?? undefined))
+          const requested = url.searchParams.get('root')
+          const base =
+            requested && isAbsolute(requested) && existsSync(requested) && statSync(requested).isDirectory()
+              ? requested
+              : configuredRoot
+          if (!base) {
+            res.statusCode = 503
+            res.setHeader('content-type', 'application/json; charset=utf-8')
+            res.end(
+              JSON.stringify({
+                ok: false,
+                error: '没有指定工作区；面板应传入当前工作区的 root，或给插件配置 root。',
+              }),
+            )
+            return
+          }
+          const body = JSON.stringify(snapshot(base, project ?? undefined))
           res.statusCode = 200
           res.setHeader('content-type', 'application/json; charset=utf-8')
           res.setHeader('cache-control', 'no-store')
@@ -386,13 +470,15 @@ export function apply(ctx, config) {
     ctx.tools.guard((execution) => {
       const args =
         execution.arguments && typeof execution.arguments === 'object' ? execution.arguments : {}
+      const guardBase = currentSessionRoot(execution.agent)
 
       if (execution.name === 'docwrite_stage_done') {
         const stage = typeof args.stage === 'string' ? args.stage : ''
+        if (!guardBase) return undefined
         let state
         try {
-          const name = resolveProject(args.project)
-          state = projectState(name)?.state
+          const name = resolveProject(guardBase, args.project)
+          state = projectState(guardBase, name)?.state
         } catch {
           state = undefined
         }
@@ -405,6 +491,7 @@ export function apply(ctx, config) {
       if (execution.name !== 'write' && execution.name !== 'edit' && execution.name !== 'str_replace_editor') {
         return undefined
       }
+      if (!guardBase) return undefined
       const raw =
         typeof args.path === 'string'
           ? args.path
@@ -413,10 +500,10 @@ export function apply(ctx, config) {
             : ''
       if (!raw || !/\.(docx|pptx)$/i.test(raw)) return undefined
 
-      const absolute = resolve(root, raw)
+      const absolute = resolve(guardBase, raw)
       const match = absolute.match(/[\\/]projects[\\/]([^\\/]+)[\\/]/)
       if (!match) return undefined
-      const found = projectState(match[1])
+      const found = projectState(guardBase, match[1])
       if (!found) return undefined
       const state = found.state
       const currentIndex = STAGE_IDS.indexOf(state.current)
@@ -435,10 +522,11 @@ export function apply(ctx, config) {
     return nodePromise
   }
 
-  async function runCli(exec, args) {
+  async function runCli(root, exec, args) {
     const node = await nodeExecutable()
+    const cliRoot = cliRootFor(root)
     const handle = ctx.subprocess.spawn({
-      argv: [node, cli, ...args],
+      argv: [node, join(cliRoot, 'bin', 'docwrite.mjs'), ...args],
       cwd: root,
       stdio: {
         stdin: 'ignore',
@@ -470,8 +558,8 @@ export function apply(ctx, config) {
     }
   }
 
-  async function callCli(exec, args) {
-    const result = await runCli(exec, args)
+  async function callCli(root, exec, args) {
+    const result = await runCli(root, exec, args)
     if (result.exitCode !== 0) {
       const detail = (result.stderr || result.stdout || '').trim()
       throw new Error(`docwrite ${args.join(' ')} 失败（exit ${result.exitCode}）：${detail}`)
@@ -479,8 +567,8 @@ export function apply(ctx, config) {
     return result
   }
 
-  async function callCliJson(exec, args) {
-    const result = await callCli(exec, args)
+  async function callCliJson(root, exec, args) {
+    const result = await callCli(root, exec, args)
     const text = result.stdout.trim()
     if (!text) return null
     try {
@@ -497,6 +585,44 @@ export function apply(ctx, config) {
 
   ctx.effect(() =>
     ctx.tools.register({
+      name: 'docwrite_init',
+      description:
+        '在当前会话工作区初始化文档项目（projects/<name>）。可选模板、截止时间、格式、作用域和入口阶段；不会读取或写入其他工作区。',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: '项目名（目录名）' },
+          template: { type: 'string', description: '模板 docx 的相对或绝对路径（可选）' },
+          deadline: { type: 'string', description: '截止时间（可选）' },
+          format: { type: 'string', enum: ['docx', 'pptx', 'md'], description: '交付格式，默认 docx' },
+          scope: {
+            type: 'string',
+            enum: ['full', 'scan', 'reduce', 'revise', 'compose', 'verify'],
+            description: '作用域，默认 full',
+          },
+          at: { type: 'string', description: '入口阶段，例如 S7（可选）' },
+        },
+        required: ['name'],
+        additionalProperties: false,
+      },
+      output: textOutput((value) => JSON.stringify(value, null, 2)),
+      async execute(args, exec) {
+        const { callCli } = await toolContext(exec)
+        const name = String(args?.name ?? '').trim()
+        if (!name) throw new Error('name 不能为空')
+        const argv = ['init', name]
+        for (const key of ['template', 'deadline', 'format', 'scope', 'at']) {
+          const value = args?.[key]
+          if (typeof value === 'string' && value.length > 0) argv.push(`--${key}`, value)
+        }
+        const result = await callCli(argv)
+        return { ok: true, project: name, output: result.stdout.trim() }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.tools.register({
       name: 'docwrite_status',
       description:
         '文档工坊流水线快照。强制流程机的第一步：先看当前阶段、待确认点、blocked 与各阶段状态，再决定动作。省略 project 时返回所有项目概览。',
@@ -507,8 +633,9 @@ export function apply(ctx, config) {
       },
       output: textOutput(renderStatus),
       async execute(args, exec) {
+        const { callCliJson, snapshot } = await toolContext(exec)
         if (typeof args?.project === 'string' && args.project.length > 0) {
-          return callCliJson(exec, ['status', '--json', '--project', args.project])
+          return callCliJson(['status', '--json', '--project', args.project])
         }
         return snapshot()
       },
@@ -527,8 +654,9 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { resolveProject, callCliJson } = await toolContext(exec)
         const name = resolveProject(args?.project)
-        return callCliJson(exec, ['next', '--json', '--project', name])
+        return callCliJson(['next', '--json', '--project', name])
       },
     }),
   )
@@ -549,10 +677,11 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { resolveProject, callCli } = await toolContext(exec)
         const stage = String(args?.stage ?? '')
         if (!/^S\d{1,2}$/.test(stage)) throw new Error(`stage 必须是 S0–S11，收到：${stage}`)
         const name = resolveProject(args?.project)
-        const result = await callCli(exec, ['stage', 'enter', stage, '--project', name])
+        const result = await callCli(['stage', 'enter', stage, '--project', name])
         return { ok: true, stage, project: name, output: result.stdout.trim() }
       },
     }),
@@ -574,10 +703,11 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { resolveProject, callCli } = await toolContext(exec)
         const stage = String(args?.stage ?? '')
         if (!/^S\d{1,2}$/.test(stage)) throw new Error(`stage 必须是 S0–S11，收到：${stage}`)
         const name = resolveProject(args?.project)
-        const result = await callCli(exec, ['stage', 'done', stage, '--project', name])
+        const result = await callCli(['stage', 'done', stage, '--project', name])
         return { ok: true, stage, project: name, output: result.stdout.trim() }
       },
     }),
@@ -600,12 +730,13 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { resolveProject, callCli } = await toolContext(exec)
         const gate = String(args?.gate ?? '')
         if (!/^U[0-7]$/.test(gate)) throw new Error(`gate 必须是 U0–U7，收到：${gate}`)
         const quote = String(args?.quote ?? '').trim()
         if (!quote) throw new Error('quote 必须是用户原话，不能为空')
         const name = resolveProject(args?.project)
-        const result = await callCli(exec, ['approve', gate, '--by', 'user', '--quote', quote, '--project', name])
+        const result = await callCli(['approve', gate, '--by', 'user', '--quote', quote, '--project', name])
         return { ok: true, gate, project: name, output: result.stdout.trim() }
       },
     }),
@@ -628,12 +759,13 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { resolveProject, callCliJson } = await toolContext(exec)
         const stage = String(args?.stage ?? '')
         if (!['S6', 'S7', 'S9'].includes(stage)) throw new Error(`评审阶段必须是 S6/S7/S9，收到：${stage}`)
         const doc = String(args?.doc ?? '')
         if (!doc) throw new Error('doc 不能为空')
         const name = resolveProject(args?.project)
-        return callCliJson(exec, ['review', 'open', '--stage', stage, '--doc', doc, '--json', '--project', name])
+        return callCliJson(['review', 'open', '--stage', stage, '--doc', doc, '--json', '--project', name])
       },
     }),
   )
@@ -654,10 +786,11 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { resolveProject, runCli } = await toolContext(exec)
         const id = String(args?.id ?? '')
         if (!id) throw new Error('id 不能为空')
         const name = resolveProject(args?.project)
-        const result = await runCli(exec, ['review', 'submit', '--id', id, '--json', '--project', name])
+        const result = await runCli(['review', 'submit', '--id', id, '--json', '--project', name])
         if (result.exitCode !== 0 && result.exitCode !== 2) {
           const detail = (result.stderr || result.stdout || '').trim()
           throw new Error(`docwrite review submit 失败（exit ${result.exitCode}）：${detail}`)
@@ -683,6 +816,7 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { root, projectState, resolveProject } = await toolContext(exec)
         const name = resolveProject(args?.project)
         const found = projectState(name)
         if (!found) throw new Error(`项目不存在或未初始化：${name}`)
@@ -762,8 +896,9 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { resolveProject, runCli } = await toolContext(exec)
         const name = resolveProject(args?.project)
-        const result = await runCli(exec, ['verify', '--json', '--project', name])
+        const result = await runCli(['verify', '--json', '--project', name])
         if (result.exitCode !== 0 && result.exitCode !== 2) {
           const detail = (result.stderr || result.stdout || '').trim()
           throw new Error(`docwrite verify 失败（exit ${result.exitCode}）：${detail}`)
@@ -788,10 +923,11 @@ export function apply(ctx, config) {
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
       async execute(args, exec) {
+        const { resolveProject, callCliJson } = await toolContext(exec)
         const name = resolveProject(args?.project)
         const argv = ['deliver', '--json', '--project', name]
         if (typeof args?.to === 'string' && args.to.length > 0) argv.push('--to', args.to)
-        return callCliJson(exec, argv)
+        return callCliJson(argv)
       },
     }),
   )

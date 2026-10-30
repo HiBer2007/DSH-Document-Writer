@@ -32,8 +32,6 @@ ${indented}
 
     - id: docwrite-harness
       name: '@local/dsh-docwrite'
-      config:
-        root: 'K:/AI文档编写'
 `
 
 writeFileSync(outPath, patch, 'utf8')

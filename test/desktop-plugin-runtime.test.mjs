@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../harness/docwrite-desktop/index.js'
@@ -45,7 +45,11 @@ function makeRepoProject(name = '__cli_test__') {
   return { root, dir, cleanup: () => rmSync(dir, { recursive: true, force: true }) }
 }
 
-function makeCtx({ realSubprocess = false, answer = { selected: ['合格，可以进入下一步'] } } = {}) {
+function makeCtx({
+  realSubprocess = false,
+  answer = { selected: ['合格，可以进入下一步'] },
+  sessionCwd = null,
+} = {}) {
   const tools = []
   const guards = []
   const routes = []
@@ -120,10 +124,20 @@ function makeCtx({ realSubprocess = false, answer = { selected: ['合格，可�
       return typeof disposer === 'function' ? disposer : () => {}
     },
   }
+  if (sessionCwd) {
+    ctx.workingDirectory = {
+      get: () => sessionCwd,
+      ensure: async () => sessionCwd,
+    }
+    ctx.sessions = {
+      get: () => ({ header: { cwd: sessionCwd } }),
+      list: () => [{ header: { cwd: sessionCwd } }],
+    }
+  }
   return { ctx, tools, guards, routes, questions }
 }
 
-test('desktop Host 插件：注册 10 个 docwrite 工具与两条只读路由', () => {
+test('desktop Host 插件：注册 11 个 docwrite 工具与两条只读路由', () => {
   const { root, dir } = makeRoot()
   try {
     const { ctx, tools, routes } = makeCtx()
@@ -131,6 +145,7 @@ test('desktop Host 插件：注册 10 个 docwrite 工具与两条只读路由',
     assert.deepEqual(
       tools.map((tool) => tool.name),
       [
+        'docwrite_init',
         'docwrite_status',
         'docwrite_next',
         'docwrite_stage_enter',
@@ -255,6 +270,79 @@ test('desktop Host 插件：visual_check 展示产物并返回用户验收结论
     )
     assert.equal(revise.verdict, 'revise')
     assert.equal(revise.feedback, '第二章需要补充数据')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop Host 插件：无 root 配置时按会话工作区运行', async () => {
+  const { root } = makeRoot()
+  try {
+    const { ctx, tools, routes, guards } = makeCtx({ sessionCwd: root })
+    apply(ctx, {})
+
+    const status = tools.find((tool) => tool.name === 'docwrite_status')
+    const value = await status.execute({}, { agent: { id: 'agent-1' }, signal: new AbortController().signal })
+    assert.equal(value.root, root)
+    assert.equal(value.projects[0].project, '测试')
+
+    const stateRoute = routes.find((route) => route.path === '/docwrite/state')
+    const response = {
+      statusCode: 0,
+      headers: {},
+      body: '',
+      setHeader(name, headerValue) {
+        this.headers[name] = headerValue
+      },
+      end(body) {
+        this.body = body
+      },
+    }
+    stateRoute.handler({ url: `/docwrite/state?root=${encodeURIComponent(root)}` }, response)
+    assert.equal(response.statusCode, 200)
+    assert.equal(JSON.parse(response.body).root, root)
+
+    const denied = guards[0]({
+      name: 'write',
+      arguments: { path: join(root, 'projects', '测试', 'build', '论文.docx') },
+      agent: { id: 'agent-1' },
+    })
+    assert.match(denied, /强制流程机/)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop Host 插件：docwrite_init 在当前工作区创建项目', async () => {
+  const { root } = makeRoot()
+  try {
+    const { ctx, tools } = makeCtx({ realSubprocess: true, sessionCwd: root })
+    apply(ctx, {})
+    const init = tools.find((tool) => tool.name === 'docwrite_init')
+    const value = await init.execute(
+      { name: '新项目', scope: 'full' },
+      { agent: { id: 'agent-1' }, signal: new AbortController().signal },
+    )
+    assert.equal(value.ok, true)
+    assert.ok(existsSync(join(root, 'projects', '新项目', '.run', 'state.json')))
+    assert.ok(!existsSync(join(root, 'projects', '新项目', 'build', 'x.docx')))
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop Host 插件：工作区没有 CLI 时使用插件包内 CLI', async () => {
+  const { root } = makeRoot()
+  try {
+    const { ctx, tools } = makeCtx({ realSubprocess: true, sessionCwd: root })
+    apply(ctx, {})
+    const next = tools.find((tool) => tool.name === 'docwrite_next')
+    const value = await next.execute(
+      { project: '测试' },
+      { agent: { id: 'agent-1' }, signal: new AbortController().signal },
+    )
+    assert.equal(value.project, '测试')
+    assert.equal(typeof value.stage, 'string')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

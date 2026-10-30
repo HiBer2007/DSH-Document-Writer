@@ -27,7 +27,8 @@
   - `docwrite mode install --profile dsh-tui` 写入 `preset-docwrite` 行；旧动态 `.mjs` 自动清理
   - `dsh --profile dsh-tui --dump-config` 组合通过；预设包与 include 包从 dsh 安装目录可解析
 - **追加：DSH Desktop 集成** ✅
-  - bundle `harness/docwrite-desktop`：声明式预设 + 10 个封装工具 + S8 硬门禁 + `/docwrite/state`、`/docwrite/presets` 两条只读路由 + 左侧栏「文档工坊」面板
+  - bundle `harness/docwrite-desktop`：声明式预设 + 11 个封装工具 + S8 硬门禁 + `/docwrite/state`、`/docwrite/presets` 两条只读路由 + 左侧栏「文档工坊」面板
+  - 工具与门禁按**当前会话工作区**运行（`ctx.workingDirectory.ensure`）；CLI 打包在插件的 `cli/`，不再读安装时的固定路径
   - 已安装到 `desktop` profile；`/docwrite/presets` 返回 `docwrite` 且 `resolved: true`、`broken: null`
   - `sidebar.panellist` 与 `main` 槽位均已注册并 active；S8 前写 docx 被实测拒绝
   - 预设组合内联而不是 include：include 的子行在启动期 audit 成 “never started”，预设会进不了工作模式选择器
@@ -57,10 +58,10 @@
 ## 测试
 
 ```
-npm test  →  114 tests, 0 fail
+npm test  →  118 tests, 0 fail
 ```
 
-覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、人工验收工具、鱼八股扫描与结构线索。
+覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
 
 ## 当前可用命令
 

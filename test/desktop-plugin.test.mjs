@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { ARTIFACTS, ENTRY_APPROVAL, STAGES } from '../harness/docwrite-desktop/index.js'
@@ -54,13 +54,20 @@ test('desktop 插件：patch 内联预设行且与 agent.cordis.yml 一致', () 
   assert.ok(preset.config.plugins.some((row) => row.id === 'persona'))
   assert.ok(preset.config.plugins.some((row) => row.id === 'tool-fs'))
   assert.equal(host.name, '@local/dsh-docwrite')
-  assert.match(host.config.root, /AI文档编写$/)
+  assert.equal(host.config, undefined)
+})
+
+test('desktop 插件：内置 CLI 运行时，工作区无 CLI 时也能运行', () => {
+  assert.ok(existsSync(join(DIR, 'cli', 'bin', 'docwrite.mjs')))
+  assert.ok(existsSync(join(DIR, 'cli', 'src', 'cli.mjs')))
+  assert.ok(existsSync(join(DIR, 'cli', 'rules', 'scan-rules.json')))
 })
 
 test('desktop 插件：client 注册侧栏图标与 main 面板', () => {
   const source = readFileSync(join(DIR, 'client.js'), 'utf8')
   assert.match(source, /sidebar\.panellist/)
   assert.match(source, /name: 'main', key: 'docwrite'/)
-  assert.match(source, /fetch\('\/docwrite\/state'/)
+  assert.match(source, /docwrite\/state\?root=/)
+  assert.match(source, /fetch\(endpoint/)
   assert.match(source, /window\.__ModuleLoader__\.load/)
 })

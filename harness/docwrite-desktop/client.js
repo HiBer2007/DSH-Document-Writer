@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
         empty: '还没有已初始化项目',
         emptyHint: '在对话里运行 docwrite init <项目名>，或切换到「文档工坊」预设开始。',
         error: '读取失败',
-        routeHint: 'Host 路由 /docwrite/state 不可用；确认插件已启用并重启 Desktop。',
+        routeHint: 'Host 路由 /docwrite/state 不可用，或当前工作区未传入；刷新页面后重试。',
         current: '当前',
         next: '下一阶段',
         approval: '待确认',
@@ -36,7 +36,7 @@ window.__ModuleLoader__.load({
         empty: 'No initialized project yet',
         emptyHint: 'Run docwrite init <name> in the conversation, or switch to the Doc Workshop preset.',
         error: 'Read failed',
-        routeHint: 'The /docwrite/state Host route is unavailable; enable the plugin and restart Desktop.',
+        routeHint: 'The /docwrite/state Host route is unavailable, or the current workspace was not passed; refresh and retry.',
         current: 'Current',
         next: 'Next',
         approval: 'Pending',
@@ -213,16 +213,56 @@ window.__ModuleLoader__.load({
       return active.toLowerCase().startsWith('en') ? 'en' : 'zh'
     }
 
-    function useSnapshot() {
+    /** 从 useWorkspaces 的 snapshot 里尽量稳健地取出当前工作区路径。 */
+    function findWorkspaceRoot(snapshot) {
+      if (!snapshot || typeof snapshot !== 'object') return null
+      const candidates = []
+      const seen = new Set()
+      const visit = (value, depth) => {
+        if (!value || depth > 3 || typeof value !== 'object' || seen.has(value)) return
+        seen.add(value)
+        if (Array.isArray(value)) {
+          for (const item of value) visit(item, depth + 1)
+          return
+        }
+        if (typeof value.path === 'string' && typeof value.workspaceId === 'string') {
+          candidates.push(value)
+        }
+        for (const key of ['items', 'workspaces', 'list', 'byId', 'entities', 'order']) {
+          visit(value[key], depth + 1)
+        }
+      }
+      visit(snapshot, 0)
+      if (candidates.length === 0) return null
+      const currentId =
+        snapshot.current ?? snapshot.currentId ?? snapshot.selected ?? snapshot.active
+      const current = candidates.find((item) => item.workspaceId === currentId) ?? candidates[0]
+      return current.path
+    }
+
+    function useWorkspaceRoot(props) {
+      try {
+        const hook = props?.useWorkspaces
+        const snapshot = typeof hook === 'function' ? hook((value) => value) : null
+        return findWorkspaceRoot(snapshot)
+      } catch {
+        return null
+      }
+    }
+
+    function useSnapshot(root) {
       const [data, setData] = React.useState(null)
       const [error, setError] = React.useState(null)
       const [revision, setRevision] = React.useState(0)
       React.useEffect(() => {
         let alive = true
         let timer = null
+        const endpoint = root
+          ? `/docwrite/state?root=${encodeURIComponent(root)}`
+          : '/docwrite/state'
         const load = async () => {
           try {
-            const response = await fetch('/docwrite/state', {
+            const response = await fetch(endpoint, {
               cache: 'no-store',
               headers: { accept: 'application/json' },
             })
@@ -242,7 +282,7 @@ window.__ModuleLoader__.load({
           alive = false
           if (timer !== null) clearInterval(timer)
         }
-      }, [revision])
+      }, [revision, root])
       return { data, error, refresh: () => setRevision((value) => value + 1) }
     }
 
@@ -374,10 +414,11 @@ window.__ModuleLoader__.load({
     }
 
     function makePanel(ctx) {
-      return function Panel() {
+      return function Panel(props) {
         const lang = useLang(ctx)
+        const workspaceRoot = useWorkspaceRoot(props)
         const t = T[lang]
-        const { data, error, refresh } = useSnapshot()
+        const { data, error, refresh } = useSnapshot(workspaceRoot)
         const projects = Array.isArray(data?.projects) ? data.projects : []
         return h(
           'div',

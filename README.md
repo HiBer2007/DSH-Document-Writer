@@ -56,9 +56,8 @@ node bin/docwrite.mjs mode uninstall --profile dsh-tui
 
 ## 在 DSH Desktop 里使用
 
-Desktop 插件包在 `harness/docwrite-desktop`。安装前先把
-`harness/docwrite-desktop/cordis.patch.yml` 里的 `docwrite-harness.config.root`
-改成你的仓库路径（默认 `K:/AI文档编写`），然后：
+Desktop 插件包在 `harness/docwrite-desktop`。插件**不绑定固定路径**：每次工具调用都解析
+当前会话的工作区，GUI 面板取最近活会话的 cwd。直接安装：
 
 ```
 plugin_manager  action: install_bundle
@@ -69,7 +68,7 @@ plugin_manager  action: install_bundle
 
 - 新建会话时选择「文档工坊」；
 - 左侧栏出现「文档工坊」面板，显示阶段进度、待确认点、blocked 原因；
-- 模型侧多出 10 个工具：`docwrite_status`、`docwrite_next`、`docwrite_stage_enter`、
+- 模型侧多出 11 个工具：`docwrite_init`、`docwrite_status`、`docwrite_next`、`docwrite_stage_enter`、
   `docwrite_stage_done`、`docwrite_approve`、`docwrite_review_open`、
   `docwrite_review_submit`、`docwrite_visual_check`、`docwrite_verify`、`docwrite_deliver`；
 - `docwrite_visual_check` 会把当前成果做成验收卡（阶段进度、产物、指标、正文预览），
@@ -77,6 +76,7 @@ plugin_manager  action: install_bundle
 
 强制门禁：S8 成型前，`write` / `edit` 写
 `projects/<name>/**/*.docx|pptx` 会被拒绝；`docwrite_stage_done` 只能完成当前阶段。
+工具和门禁都以**当前会话工作区**为根；不再读取安装时写死的固定路径。
 
 ## 降重规则（重要）
 
