@@ -31,6 +31,7 @@
   - 已安装到 `desktop` profile；`/docwrite/presets` 返回 `docwrite` 且 `resolved: true`、`broken: null`
   - `sidebar.panellist` 与 `main` 槽位均已注册并 active；S8 前写 docx 被实测拒绝
   - 预设组合内联而不是 include：include 的子行在启动期 audit 成 “never started”，预设会进不了工作模式选择器
+  - persona suffix 只写静态文本：DSH prompt 变量只注册 `provider` / `model`，`{{cwd}}` 会报 unknown prompt variable
 - **追加：Desktop 人工验收工具** ✅
   - `docwrite_visual_check`：阶段进度、产物清单、关键指标、正文预览做成验收卡
   - 三选一：合格 / 需要修改 / 暂不判断；不合格时收集需要修改的地方

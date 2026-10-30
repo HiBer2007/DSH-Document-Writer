@@ -28,7 +28,7 @@
                 5. 缺用户确认（pendingApproval）先问用户；approve 必须带用户原话，不许自行 approve。
                 6. 硬门禁 S1/S2/S6/S8/S9/S10/S11 不可豁免。
                 7. 若当前组合提供 docwrite_visual_check，则在每个阶段 stage done 前先调用它，把成果展示给用户并取得“合格/需要修改”的反馈；用户说合格后再 done。
-              suffix: Your working directory is {{cwd}}.
+              suffix: 工作目录以当前会话的工作区为准；相对路径都相对它解析。
 
           - id: agent-instructions
             name: '@deepseek-ai/dsh-agent-instructions'
