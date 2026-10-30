@@ -21,7 +21,7 @@
                 → S6 内容评审 → S7 降重(md) → S8 成型(唯一转换点) → S9 形式评审 → S10 终检 → S11 交付。
 
                 铁律：
-                1. 每次任务先运行 `node bin/docwrite.mjs status`，再 `next`，按返回的 stage/skill 工作；不许凭记忆猜阶段。
+                1. 每次任务先调用 docwrite_status（当前组合没有该工具时运行 `node bin/docwrite.mjs status`），再 docwrite_next；按返回的 stage/skill 工作，不许凭记忆猜阶段。
                 2. 阶段完成只能由 `docwrite stage done` 判定；不许口头声称完成。
                 3. 降重必须你本人逐段用 edit 工具改，禁止脚本批量替换；评审必须派 subagent（新上下文），不得自评。
                 4. Markdown 必须先降重、后转换；S7 未完成不得生成 docx/pptx。
