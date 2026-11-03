@@ -38,6 +38,15 @@ window.__ModuleLoader__.load({
         allArchived: '活跃项目都已归档',
         allArchivedHint: '点右上角“显示已归档”查看并恢复。',
         disclaimer: '声明',
+        checkUpdate: '检查更新',
+        checkingUpdate: '检查中…',
+        upToDate: '已是最新版本',
+        updateAvailable: '发现新版本',
+        currentVersion: '当前',
+        latestVersion: '最新',
+        openRelease: '打开 Release',
+        updateFailed: '检查更新失败',
+        close: '关闭',
       },
       en: {
         title: 'Doc Workshop',
@@ -68,6 +77,15 @@ window.__ModuleLoader__.load({
         allArchived: 'All active projects are archived',
         allArchivedHint: 'Use “Show archived” at the top right to view and restore them.',
         disclaimer: 'Notice',
+        checkUpdate: 'Check updates',
+        checkingUpdate: 'Checking…',
+        upToDate: 'Up to date',
+        updateAvailable: 'New version',
+        currentVersion: 'current',
+        latestVersion: 'latest',
+        openRelease: 'Open release',
+        updateFailed: 'Update check failed',
+        close: 'Close',
       },
     }
 
@@ -97,7 +115,27 @@ window.__ModuleLoader__.load({
         justifyContent: 'space-between',
         gap: '16px',
       },
-      headerActions: { display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 auto' },
+      headerActions: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        flex: '0 0 auto',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-end',
+      },
+      updateBanner: {
+        marginTop: '14px',
+        padding: '10px 14px',
+        border: '1px solid var(--dsw-alias-border-l1)',
+        borderRadius: '8px',
+        background: 'var(--dsw-alias-bg-layer-1)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        flexWrap: 'wrap',
+        fontSize: '13px',
+        color: 'var(--dsw-alias-label-primary)',
+      },
       title: { margin: 0, fontSize: '22px', fontWeight: 650, letterSpacing: '0.01em' },
       subtitle: {
         marginTop: '6px',
@@ -417,7 +455,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    const DISCLAIMER_KEY = 'docwrite.disclaimer.v1.1.0'
+    const DISCLAIMER_KEY = 'docwrite.disclaimer.v1.1.1'
 
     function showDisclaimer(force = false) {
       if (typeof document === 'undefined' || typeof window === 'undefined') return
@@ -511,8 +549,8 @@ window.__ModuleLoader__.load({
       ack.type = 'button'
       ack.textContent = '我已知悉并同意'
       ack.style.cssText =
-        'border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:14px;' +
-        'background:var(--dsw-alias-brand-primary,#2563eb);color:#fff;'
+        'border:1px solid #1d4ed8;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:14px;' +
+        'font-weight:600;background:#1d4ed8;color:#fff;'
       ack.onclick = () => {
         try {
           localStorage.setItem(DISCLAIMER_KEY, '1')
@@ -547,8 +585,27 @@ window.__ModuleLoader__.load({
         const [showArchived, setShowArchived] = React.useState(false)
         const [busyKey, setBusyKey] = React.useState(null)
         const [actionError, setActionError] = React.useState(null)
+        const [updateInfo, setUpdateInfo] = React.useState(null)
+        const [checkingUpdate, setCheckingUpdate] = React.useState(false)
         const archivedCount = projects.filter((project) => project.archived).length
         const visible = showArchived ? projects : projects.filter((project) => !project.archived)
+
+        const checkForUpdate = async () => {
+          setCheckingUpdate(true)
+          setUpdateInfo(null)
+          try {
+            const response = await fetch('/docwrite/update', {
+              cache: 'no-store',
+              headers: { accept: 'application/json' },
+            })
+            if (!response.ok) throw new Error(`HTTP ${response.status}`)
+            setUpdateInfo(await response.json())
+          } catch (err) {
+            setUpdateInfo({ ok: false, error: err?.message ?? String(err) })
+          } finally {
+            setCheckingUpdate(false)
+          }
+        }
 
         const toggleArchive = async (project) => {
           const key = `${project.workspace ?? ''}:${project.project}`
@@ -595,6 +652,16 @@ window.__ModuleLoader__.load({
                 {
                   type: 'button',
                   style: S.refresh,
+                  onClick: checkForUpdate,
+                  disabled: checkingUpdate,
+                },
+                checkingUpdate ? t.checkingUpdate : t.checkUpdate,
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  style: S.refresh,
                   onClick: () => showDisclaimer(true),
                 },
                 t.disclaimer,
@@ -632,6 +699,41 @@ window.__ModuleLoader__.load({
             : null,
           actionError
             ? h('div', { style: S.error }, `${t.archiveFailed}：${actionError}`)
+            : null,
+          updateInfo
+            ? h(
+                'div',
+                { style: S.updateBanner },
+                h(
+                  'span',
+                  null,
+                  updateInfo.ok
+                    ? updateInfo.updateAvailable
+                      ? `${t.updateAvailable} ${updateInfo.tag}（${t.currentVersion} ${updateInfo.current}）`
+                      : `${t.upToDate}（${updateInfo.current}）`
+                    : `${t.updateFailed}：${updateInfo.error ?? 'unknown'}`,
+                ),
+                updateInfo.url
+                  ? h(
+                      'a',
+                      {
+                        href: updateInfo.url,
+                        target: '_blank',
+                        rel: 'noopener noreferrer',
+                        style: { color: 'inherit', textDecoration: 'underline' },
+                      },
+                      t.openRelease,
+                    )
+                  : null,                h(
+                  'button',
+                  {
+                    type: 'button',
+                    style: { ...S.refresh, padding: '3px 10px', fontSize: '12px', marginLeft: 'auto' },
+                    onClick: () => setUpdateInfo(null),
+                  },
+                  t.close,
+                ),
+              )
             : null,
           !data && !error ? h('div', { style: S.empty }, t.loading) : null,
           data && projects.length === 0

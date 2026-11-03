@@ -7,6 +7,7 @@
 //
 // 阶段表与 ENTRY_APPROVAL 必须和 src/core/stages.mjs 保持一致；test/desktop-plugin.test.mjs 会对比。
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { execFile } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -289,6 +290,105 @@ export function apply(ctx, config) {
     typeof config?.root === 'string' && config.root.trim().length > 0 ? resolve(config.root) : null
   const packageDir = dirname(fileURLToPath(import.meta.url))
   const bundledCli = join(packageDir, 'cli')
+  const REPO = 'HiBer2007/DSH-Document-Writer'
+  let currentVersion = '0.0.0'
+  try {
+    currentVersion = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8')).version ?? currentVersion
+  } catch {
+    // 版本读不到时仍允许检查，只显示 0.0.0。
+  }
+  let updateCache = null
+
+  function compareVersions(left, right) {
+    const parse = (value) =>
+      String(value)
+        .replace(/^v/i, '')
+        .split('-')[0]
+        .split('.')
+        .map((part) => Number.parseInt(part, 10) || 0)
+    const a = parse(left)
+    const b = parse(right)
+    for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+      const diff = (a[index] ?? 0) - (b[index] ?? 0)
+      if (diff !== 0) return diff > 0 ? 1 : -1
+    }
+    return 0
+  }
+
+  async function fetchRelease() {
+    const response = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: {
+        accept: 'application/vnd.github+json',
+        'user-agent': `dsh-docwrite/${currentVersion}`,
+      },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!response.ok) throw new Error(`GitHub API ${response.status}`)
+    return response.json()
+  }
+
+  /** Node 自带 fetch 在部分 Windows 证书环境下会 UNABLE_TO_VERIFY_LEAF_SIGNATURE；用 gh 兜底。 */
+  function ghRelease() {
+    return new Promise((resolve, reject) => {
+      execFile(
+        'gh',
+        ['api', `repos/${REPO}/releases/latest`],
+        { timeout: 8000, windowsHide: true, maxBuffer: 1024 * 1024 },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error((stderr || error.message || 'gh 调用失败').trim()))
+            return
+          }
+          try {
+            resolve(JSON.parse(stdout))
+            return
+          } catch {
+            const start = stdout.indexOf('{')
+            const end = stdout.lastIndexOf('}')
+            if (start >= 0 && end > start) {
+              try {
+                resolve(JSON.parse(stdout.slice(start, end + 1)))
+                return
+              } catch {
+                // 继续走统一报错。
+              }
+            }
+          }
+          reject(new Error('gh 返回的不是 JSON'))
+        },
+      )
+    })
+  }
+
+  async function checkUpdate() {
+    if (updateCache && Date.now() - updateCache.at < 10 * 60 * 1000) return updateCache.value
+    let release
+    try {
+      release = await fetchRelease()
+    } catch (first) {
+      try {
+        release = await ghRelease()
+      } catch {
+        throw first
+      }
+    }
+    const tag = typeof release.tag_name === 'string' ? release.tag_name : ''
+    if (!tag) throw new Error('GitHub 没有返回 release tag')
+    const latest = tag.replace(/^v/i, '')
+    const value = {
+      ok: true,
+      current: currentVersion,
+      latest,
+      tag,
+      updateAvailable: compareVersions(latest, currentVersion) > 0,
+      name: release.name ?? tag,
+      url: release.html_url ?? `https://github.com/${REPO}/releases/tag/${tag}`,
+      publishedAt: release.published_at ?? null,
+      notes: typeof release.body === 'string' ? release.body.slice(0, 4000) : '',
+    }
+    updateCache = { at: Date.now(), value }
+    return value
+  }
 
   /** 文档工作区可以自带 CLI；否则用插件包内同步好的 CLI。 */
   function cliRootFor(workspace) {
@@ -625,6 +725,34 @@ export function apply(ctx, config) {
           send(200, { ok: true, project, archived: meta.archived, meta })
         } catch (err) {
           send(500, { ok: false, error: err?.message ?? String(err) })
+        }
+      },
+    }),
+  )
+
+  // ── 检查更新（GitHub Release，只读，10 分钟缓存） ─────────────────────
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: 'exact',
+      path: '/docwrite/update',
+      handler: async (_req, res) => {
+        try {
+          const value = await checkUpdate()
+          res.statusCode = 200
+          res.setHeader('content-type', 'application/json; charset=utf-8')
+          res.setHeader('cache-control', 'no-store')
+          res.end(JSON.stringify(value))
+        } catch (err) {
+          res.statusCode = 200
+          res.setHeader('content-type', 'application/json; charset=utf-8')
+          res.end(
+            JSON.stringify({
+              ok: false,
+              current: currentVersion,
+              error: err?.message ?? String(err),
+              url: `https://github.com/${REPO}/releases`,
+            }),
+          )
         }
       },
     }),

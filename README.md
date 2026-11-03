@@ -65,8 +65,8 @@ node bin/docwrite.mjs help
 | 引用 | 用途 |
 | --- | --- |
 | `main` | 开发分支，日常提交先到这里 |
-| `release` | 稳定发布快照；当前指向 `v1.1.0` |
-| `v1.1.0` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
+| `release` | 稳定发布快照；当前指向 `v1.1.1` |
+| `v1.1.1` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
 
 - **用稳定版**：克隆 `release` 或检出标签：
 
@@ -75,7 +75,7 @@ node bin/docwrite.mjs help
   # 或
   git clone git@github.com:HiBer2007/DSH-Document-Writer.git
   cd DSH-Document-Writer
-  git checkout v1.1.0
+  git checkout v1.1.1
   ```
 
 - **跟进最新功能**：用 `main`。
@@ -86,8 +86,8 @@ node bin/docwrite.mjs help
   npm test
   git switch release
   git merge --ff-only main
-  git tag -a v1.1.1 -m "文档工坊 v1.1.1"
-  git push origin release v1.1.1
+  git tag -a v1.1.2 -m "文档工坊 v1.1.2"
+  git push origin release v1.1.2
   git switch main
   ```
 
@@ -96,7 +96,15 @@ node bin/docwrite.mjs help
 
 - `release` 只放可发布状态，不直接加功能提交；功能、重构、文档修改先走 `main`。
 - 发布前把 `package.json` 的 `version` 与标签改成同一个版本号；当前是
-  `1.1.0` / `v1.1.0`。
+  `1.1.1` / `v1.1.1`。
+- **检查更新**：面板右上角「检查更新」按钮，或 CLI：
+
+  ```powershell
+  node bin/docwrite.mjs update [--json]
+  ```
+
+  只查询 GitHub 最新 Release 并和当前版本比较，**不会自动安装**；有新版时给出
+  Release 链接。
 
 ## 首次安装
 
@@ -148,6 +156,7 @@ plugin_manager  action: install_bundle
 - 新建会话时选择「文档工坊」；
 - 左侧栏出现「文档工坊」面板，显示阶段进度、待确认点、blocked 原因；
   项目卡片可手动**归档/恢复**，归档只写 `.run/panel.json`，数据和流程状态都不动；
+  右上角有「检查更新」，只查 GitHub 最新 Release，不会自动安装；
 - 模型侧多出 13 个工具：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、`docwrite_next`、`docwrite_stage_enter`、
   `docwrite_stage_done`、`docwrite_approve`、`docwrite_review_open`、`docwrite_review_submit`、
   `docwrite_review_extend`、`docwrite_visual_check`、`docwrite_verify`、`docwrite_deliver`；

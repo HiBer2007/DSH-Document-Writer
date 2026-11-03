@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-docwrite",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "文档工坊 for DSH Desktop: packaged docwrite tools, a hard stage gate, and a pipeline panel in the Web GUI.",

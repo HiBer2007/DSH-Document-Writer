@@ -34,6 +34,9 @@
   - `sidebar.panellist` 与 `main` 槽位均已注册并 active；S8 前写 docx 被实测拒绝
   - 预设组合内联而不是 include：include 的子行在启动期 audit 成 “never started”，预设会进不了工作模式选择器
   - persona suffix 只写静态文本：DSH prompt 变量只注册 `provider` / `model`，`{{cwd}}` 会报 unknown prompt variable
+- **追加：检查更新** ✅
+  - 面板右上角「检查更新」；CLI `docwrite update [--json]`；只查 GitHub 最新 Release，不自动安装
+  - Host `GET /docwrite/update` 比较当前版本与最新 tag，10 分钟缓存；有新版给 Release 链接
 - **追加：使用声明与首次安装弹窗** ✅
   - Desktop 首次加载在 DSH 内弹模态：仅学习交流、勿用于学术用途、守法、免责 + 首次安装提示
   - 点“我已知悉并同意”后写 localStorage；面板右上角「声明」可重开
@@ -86,7 +89,7 @@
 ## 测试
 
 ```
-npm test  →  131 tests, 0 fail
+npm test  →  136 tests, 0 fail
 ```
 
 覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
@@ -101,7 +104,7 @@ scope show|set / source add|declare|resolve|status
 ext list|install|enable|disable / skills list|show / dispatch
 docx read|inspect|fill|replace|md / pptx read|notes|fill / from-md
 scan / suggest / diff / compose / constraints show|template|init|check
-spec|outline|draft|reduce check / history / archive|unarchive
+spec|outline|draft|reduce check / history / archive|unarchive / update
 ppt init|import|validate|info|build|check
 pdf <docx> [out.pdf] [--backend auto|kit|soffice]
 preview start|status|stop / mode install|status|uninstall [--profile dsh-tui]

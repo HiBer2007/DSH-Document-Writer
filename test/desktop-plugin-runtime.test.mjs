@@ -139,7 +139,7 @@ function makeCtx({
   return { ctx, tools, guards, routes, questions }
 }
 
-test('desktop Host 插件：注册 13 个 docwrite 工具与三条路由', () => {
+test('desktop Host 插件：注册 13 个 docwrite 工具与四条路由', () => {
   const { root, dir } = makeRoot()
   try {
     const { ctx, tools, routes } = makeCtx()
@@ -162,10 +162,10 @@ test('desktop Host 插件：注册 13 个 docwrite 工具与三条路由', () =>
         'docwrite_deliver',
       ],
     )
-    assert.equal(routes.length, 3)
+    assert.equal(routes.length, 4)
     assert.deepEqual(
       routes.map((route) => route.path).sort(),
-      ['/docwrite/archive', '/docwrite/presets', '/docwrite/state'],
+      ['/docwrite/archive', '/docwrite/presets', '/docwrite/state', '/docwrite/update'],
     )
     const stateRoute = routes.find((route) => route.path === '/docwrite/state')
 
@@ -238,6 +238,48 @@ test('desktop Host 插件：归档/恢复项目只改 panel.json', async () => {
     assert.equal(JSON.parse(response.body).archived, false)
     assert.equal(JSON.parse(readFileSync(join(dir, '.run', 'panel.json'), 'utf8')).archived, false)
   } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop Host 插件：/docwrite/update 比较 GitHub 最新 Release', async () => {
+  const { root } = makeRoot()
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      tag_name: 'v9.9.9',
+      name: 'future release',
+      html_url: 'https://example.test/releases/v9.9.9',
+      published_at: '2026-11-04T00:00:00Z',
+      body: 'future notes',
+    }),
+  })
+  try {
+    const { ctx, routes } = makeCtx()
+    apply(ctx, { root })
+    const route = routes.find((entry) => entry.path === '/docwrite/update')
+    const response = {
+      statusCode: 0,
+      headers: {},
+      body: '',
+      setHeader(name, value) {
+        this.headers[name] = value
+      },
+      end(body) {
+        this.body = body
+      },
+    }
+    await route.handler({}, response)
+    assert.equal(response.statusCode, 200)
+    const payload = JSON.parse(response.body)
+    assert.equal(payload.ok, true)
+    assert.equal(payload.latest, '9.9.9')
+    assert.equal(payload.updateAvailable, true)
+    assert.match(payload.current, /^\d+\.\d+\.\d+$/)
+    assert.equal(payload.url, 'https://example.test/releases/v9.9.9')
+  } finally {
+    globalThis.fetch = originalFetch
     rmSync(root, { recursive: true, force: true })
   }
 })

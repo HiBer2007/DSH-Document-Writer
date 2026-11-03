@@ -466,6 +466,7 @@ docwrite history [--json]
 docwrite scope show|set --by user --quote "..."
 docwrite archive <项目名> [--reason "..."]   # 从面板归档；只写 .run/panel.json
 docwrite unarchive <项目名>                  # 恢复归档
+docwrite update [--json]                     # 检查 GitHub 最新 Release
 
 # 用户确认
 docwrite approve <U0..U7> --by user --quote "..."

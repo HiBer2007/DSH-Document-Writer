@@ -32,6 +32,7 @@ import {
   specCommand,
 } from './commands/misc.mjs'
 import { archiveCommand } from './commands/archive.mjs'
+import { updateCommand } from './commands/update.mjs'
 
 const COMMANDS = {
   docx: docxCommand,
@@ -65,6 +66,7 @@ const COMMANDS = {
   history: historyCommand,
   archive: (argv) => archiveCommand(argv, true),
   unarchive: (argv) => archiveCommand(argv, false),
+  update: updateCommand,
   pdf: pdfCommand,
   ppt: pptCommand,
 }
@@ -96,6 +98,7 @@ const HELP = `docwrite — 文档工坊
   history
   archive <项目名> [--reason "..."]        从面板归档（数据保留，可恢复）
   unarchive <项目名>                       恢复已归档项目
+  update [--json]                          检查 GitHub 最新 Release
   unblock [--reset-all]                    解除 blocked
   scope show | set --mode scan --by user --quote "..."
   source add <文件> | declare "名称" | resolve "名称" | status
