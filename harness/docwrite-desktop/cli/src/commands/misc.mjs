@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { CliError, EXIT } from '../core/errors.mjs'
 import { parseArgs } from '../core/args.mjs'
@@ -6,7 +6,7 @@ import { checkStage, constraintTemplate } from '../core/checks.mjs'
 import { fillFields } from '../core/docx-ops.mjs'
 import { markdownToDocxBytes } from '../core/md.mjs'
 import { loadConfig, statusOf } from '../core/state.mjs'
-import { projectFromFlags, rootFromFlags } from './common.mjs'
+import { projectFromFlags } from './common.mjs'
 
 async function runCheck(stage, argv) {
   const { flags } = parseArgs(argv)
@@ -85,17 +85,6 @@ export async function historyCommand(argv) {
     return EXIT.OK
   }
   console.log(readFileSync(path, 'utf8').trimEnd())
-  return EXIT.OK
-}
-
-export async function archiveCommand(argv) {
-  const { flags } = parseArgs(argv)
-  const root = rootFromFlags(flags)
-  const { dir, state } = projectFromFlags(flags)
-  const target = join(root, 'projects', '.archive', `${state.project}-${Date.now()}`)
-  mkdirSync(dirname(target), { recursive: true })
-  renameSync(dir, target)
-  console.log(`📦 已归档：${target}`)
   return EXIT.OK
 }
 

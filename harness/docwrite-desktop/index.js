@@ -6,7 +6,7 @@
 // 3. 为 Web GUI 的「文档工坊」面板提供 /docwrite/state 只读快照。
 //
 // 阶段表与 ENTRY_APPROVAL 必须和 src/core/stages.mjs 保持一致；test/desktop-plugin.test.mjs 会对比。
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -262,6 +262,28 @@ function textOutput(render) {
   }
 }
 
+function readBody(req, limit = 64 * 1024) {
+  if (typeof req?.body === 'string') {
+    if (req.body.length > limit) return Promise.reject(new Error('请求体过大'))
+    return Promise.resolve(req.body)
+  }
+  return new Promise((resolve, reject) => {
+    let size = 0
+    const chunks = []
+    req.on('data', (chunk) => {
+      size += chunk.length
+      if (size > limit) {
+        reject(new Error('请求体过大'))
+        req.destroy?.()
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    req.on('error', reject)
+  })
+}
+
 export function apply(ctx, config) {
   const configuredRoot =
     typeof config?.root === 'string' && config.root.trim().length > 0 ? resolve(config.root) : null
@@ -386,19 +408,50 @@ export function apply(ctx, config) {
     throw new Error(`有多个项目，请用 project 参数指定：${names.join('、')}`)
   }
 
+  function readPanelMeta(root, project) {
+    const path = join(root, 'projects', project, '.run', 'panel.json')
+    if (!existsSync(path)) return {}
+    try {
+      return JSON.parse(readFileSync(path, 'utf8'))
+    } catch {
+      return {}
+    }
+  }
+
+  function writePanelMeta(root, project, archived, reason = '') {
+    const dir = join(root, 'projects', project, '.run')
+    mkdirSync(dir, { recursive: true })
+    const previous = readPanelMeta(root, project)
+    const meta = {
+      ...previous,
+      archived: Boolean(archived),
+      archivedAt: archived ? new Date().toISOString() : null,
+      archivedBy: archived ? 'user' : null,
+      reason: archived ? reason : '',
+    }
+    writeFileSync(join(dir, 'panel.json'), `${JSON.stringify(meta, null, 2)}\n`, 'utf8')
+    return meta
+  }
+
   function snapshot(root, project) {
     requireRoot(root)
     const names = typeof project === 'string' && project.length > 0 ? [project] : listProjects(root)
     const projects = names.map((name) => {
       const found = projectState(root, name)
-      if (!found) return { project: name, workspace: root, error: 'state.json 不可读' }
+      if (!found) return { project: name, workspace: root, archived: false, error: 'state.json 不可读' }
       let updatedAt = null
       try {
         updatedAt = statSync(found.path).mtime.toISOString()
       } catch {
         updatedAt = null
       }
-      return { ...summarize(found.state, updatedAt), workspace: root }
+      const meta = readPanelMeta(root, name)
+      return {
+        ...summarize(found.state, updatedAt),
+        workspace: root,
+        archived: meta.archived === true,
+        archivedAt: meta.archivedAt ?? null,
+      }
     })
     return { ok: true, root, generatedAt: new Date().toISOString(), projects }
   }
@@ -523,6 +576,55 @@ export function apply(ctx, config) {
           res.statusCode = 500
           res.setHeader('content-type', 'application/json; charset=utf-8')
           res.end(JSON.stringify({ ok: false, error: err?.message ?? String(err) }))
+        }
+      },
+    }),
+  )
+
+  // ── 手工归档（只写 .run/panel.json，不改流程状态） ────────────────────
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: 'exact',
+      path: '/docwrite/archive',
+      handler: async (req, res) => {
+        const send = (status, value) => {
+          res.statusCode = status
+          res.setHeader('content-type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify(value))
+        }
+        try {
+          if (req.method !== 'POST') {
+            send(405, { ok: false, error: '只支持 POST' })
+            return
+          }
+          const raw = await readBody(req)
+          let payload
+          try {
+            payload = JSON.parse(raw || '{}')
+          } catch {
+            send(400, { ok: false, error: '请求体不是合法 JSON' })
+            return
+          }
+          const root = typeof payload.root === 'string' ? payload.root : ''
+          const project = typeof payload.project === 'string' ? payload.project : ''
+          const archived = payload.archived !== false
+          const reason = typeof payload.reason === 'string' ? payload.reason : ''
+          if (!isAbsolute(root) || !existsSync(root) || !statSync(root).isDirectory()) {
+            send(400, { ok: false, error: `工作区不存在：${root}` })
+            return
+          }
+          if (!/^[^\\/:*?"<>|]+$/.test(project) || project === '.' || project === '..') {
+            send(400, { ok: false, error: `项目名不合法：${project}` })
+            return
+          }
+          if (!projectState(root, project)) {
+            send(404, { ok: false, error: `项目不存在或未初始化：${project}` })
+            return
+          }
+          const meta = writePanelMeta(root, project, archived, reason)
+          send(200, { ok: true, project, archived: meta.archived, meta })
+        } catch (err) {
+          send(500, { ok: false, error: err?.message ?? String(err) })
         }
       },
     }),

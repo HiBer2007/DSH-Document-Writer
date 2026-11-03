@@ -23,7 +23,6 @@ import { dispatchCommand, skillsCommand } from './commands/skills.mjs'
 import { pdfCommand } from './commands/pdf.mjs'
 import { pptCommand } from './commands/ppt.mjs'
 import {
-  archiveCommand,
   composeCommand,
   constraintsCommand,
   draftCommand,
@@ -32,6 +31,7 @@ import {
   reduceCommand,
   specCommand,
 } from './commands/misc.mjs'
+import { archiveCommand } from './commands/archive.mjs'
 
 const COMMANDS = {
   docx: docxCommand,
@@ -63,7 +63,8 @@ const COMMANDS = {
   reduce: reduceCommand,
   compose: composeCommand,
   history: historyCommand,
-  archive: archiveCommand,
+  archive: (argv) => archiveCommand(argv, true),
+  unarchive: (argv) => archiveCommand(argv, false),
   pdf: pdfCommand,
   ppt: pptCommand,
 }
@@ -92,7 +93,9 @@ const HELP = `docwrite — 文档工坊
   compose [--from draft_reduced.md] [--template f.docx --fields-file f.json]
   pdf <docx> [out.pdf] [--backend auto|kit|soffice] [--soffice 路径]
   ppt init|import|validate|info|build|check ... [--dry-run]
-  history | archive --reason "..."
+  history
+  archive <项目名> [--reason "..."]        从面板归档（数据保留，可恢复）
+  unarchive <项目名>                       恢复已归档项目
   unblock [--reset-all]                    解除 blocked
   scope show | set --mode scan --by user --quote "..."
   source add <文件> | declare "名称" | resolve "名称" | status

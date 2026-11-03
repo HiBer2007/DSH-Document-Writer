@@ -15,7 +15,8 @@
    CLI 侧的门禁（哈希、评审、U 确认、回退预算）仍然是唯一判据。
 4. **GUI 区**：左侧栏「文档工坊」面板 + `main` 键控页面。面板读取
    `GET /docwrite/state`，汇总所有活会话工作区里的项目，展示每个项目的 12 阶段进度、
-   待确认点、blocked 原因，并标注所属工作区。
+   待确认点、blocked 原因，并标注所属工作区。每张卡片可以手动**归档/恢复**：
+   归档只写 `.run/panel.json`，不删数据、不改流程状态；右上角可切换显示已归档项目。
 
 ## 安装
 
@@ -41,6 +42,8 @@ target: <绝对路径>\harness\docwrite-desktop
 - 工具执行时用 `ctx.workingDirectory.ensure(agent)` 解析会话目录，并以它为 `cwd` 调 CLI。
 - GUI 面板不依赖 `useWorkspaces` 的当前项：它请求不带 `root` 的 `/docwrite/state`，
   Host 汇总所有**活会话**里已初始化项目的工作区；显式 `?root=` 时只看那一个工作区。
+- 归档走 `POST /docwrite/archive`（`{root, project, archived}`），和 CLI
+  `docwrite archive|unarchive` 共用 `.run/panel.json`。
 
 如果确实需要一个没有会话时的回退根，可以在 `cordis.patch.yml` 的
 `docwrite-harness` 行加 `config.root`；正常安装不需要。

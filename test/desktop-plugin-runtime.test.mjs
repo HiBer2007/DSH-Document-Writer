@@ -139,7 +139,7 @@ function makeCtx({
   return { ctx, tools, guards, routes, questions }
 }
 
-test('desktop Host 插件：注册 13 个 docwrite 工具与两条只读路由', () => {
+test('desktop Host 插件：注册 13 个 docwrite 工具与三条路由', () => {
   const { root, dir } = makeRoot()
   try {
     const { ctx, tools, routes } = makeCtx()
@@ -162,10 +162,10 @@ test('desktop Host 插件：注册 13 个 docwrite 工具与两条只读路由',
         'docwrite_deliver',
       ],
     )
-    assert.equal(routes.length, 2)
+    assert.equal(routes.length, 3)
     assert.deepEqual(
       routes.map((route) => route.path).sort(),
-      ['/docwrite/presets', '/docwrite/state'],
+      ['/docwrite/archive', '/docwrite/presets', '/docwrite/state'],
     )
     const stateRoute = routes.find((route) => route.path === '/docwrite/state')
 
@@ -192,6 +192,51 @@ test('desktop Host 插件：注册 13 个 docwrite 工具与两条只读路由',
     assert.equal(payload.projects[0].stages[8].id, 'S8')
     assert.equal(payload.projects[0].stages[8].status, 'pending')
     assert.ok(dir)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop Host 插件：归档/恢复项目只改 panel.json', async () => {
+  const { root, dir } = makeRoot()
+  try {
+    const { ctx, routes } = makeCtx()
+    apply(ctx, { root })
+    const archiveRoute = routes.find((route) => route.path === '/docwrite/archive')
+    const response = {
+      statusCode: 0,
+      headers: {},
+      body: '',
+      setHeader(name, value) {
+        this.headers[name] = value
+      },
+      end(body) {
+        this.body = body
+      },
+    }
+
+    await archiveRoute.handler(
+      { method: 'POST', body: JSON.stringify({ root, project: '测试', archived: true }) },
+      response,
+    )
+    assert.equal(response.statusCode, 200)
+    assert.equal(JSON.parse(response.body).archived, true)
+    const meta = JSON.parse(readFileSync(join(dir, '.run', 'panel.json'), 'utf8'))
+    assert.equal(meta.archived, true)
+    assert.equal(meta.archivedBy, 'user')
+
+    const stateRoute = routes.find((route) => route.path === '/docwrite/state')
+    const stateResponse = { ...response, statusCode: 0, body: '' }
+    stateRoute.handler({ url: '/docwrite/state' }, stateResponse)
+    assert.equal(JSON.parse(stateResponse.body).projects[0].archived, true)
+
+    await archiveRoute.handler(
+      { method: 'POST', body: JSON.stringify({ root, project: '测试', archived: false }) },
+      response,
+    )
+    assert.equal(response.statusCode, 200)
+    assert.equal(JSON.parse(response.body).archived, false)
+    assert.equal(JSON.parse(readFileSync(join(dir, '.run', 'panel.json'), 'utf8')).archived, false)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }

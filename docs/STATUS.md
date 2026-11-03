@@ -34,6 +34,10 @@
   - `sidebar.panellist` 与 `main` 槽位均已注册并 active；S8 前写 docx 被实测拒绝
   - 预设组合内联而不是 include：include 的子行在启动期 audit 成 “never started”，预设会进不了工作模式选择器
   - persona suffix 只写静态文本：DSH prompt 变量只注册 `provider` / `model`，`{{cwd}}` 会报 unknown prompt variable
+- **追加：项目归档/恢复** ✅
+  - 面板卡片支持手动归档/恢复；归档只写 `.run/panel.json`，不删数据、不改流程状态
+  - 右上角切换“显示已归档”；CLI `archive <项目名>` / `unarchive <项目名>` 共用同一份元数据
+  - Host `POST /docwrite/archive`；测试覆盖归档、恢复与 `/docwrite/state` 的 `archived` 字段
 - **追加：约束 JSON 契约** ✅
   - `constraints init` 生成合法骨架，`constraints template` 打印可复制 JSON，`constraints check` 校验
   - S1 检查器校验 `id/type/priority/source/check` 必填、id 唯一、priority 只能是 hard/soft、冲突必须有 resolution
@@ -77,7 +81,7 @@
 ## 测试
 
 ```
-npm test  →  128 tests, 0 fail
+npm test  →  131 tests, 0 fail
 ```
 
 覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
@@ -92,7 +96,7 @@ scope show|set / source add|declare|resolve|status
 ext list|install|enable|disable / skills list|show / dispatch
 docx read|inspect|fill|replace|md / pptx read|notes|fill / from-md
 scan / suggest / diff / compose / constraints show|template|init|check
-spec|outline|draft|reduce check / history / archive
+spec|outline|draft|reduce check / history / archive|unarchive
 ppt init|import|validate|info|build|check
 pdf <docx> [out.pdf] [--backend auto|kit|soffice]
 preview start|status|stop / mode install|status|uninstall [--profile dsh-tui]

@@ -279,7 +279,7 @@ scan → edit 一段 → diff → … → 自查达标 → review open → 子�
 | `modificationRateMin` | 0 | S7 修改率下限；0 = 不强制（可选过程保底） |
 | `maxChangedRatioPerCheckpoint` | 0.30 | 单检查点改动段落占比上限（防批量替换） |
 
-耗尽 → `blocked`，三选一：`unblock --reset-edge` / 降标准（仅软门禁）/ `archive`。
+耗尽 → `blocked`，三选一：`unblock --reset-edge` / 降标准（仅软门禁）/ `archive <项目名>`（从面板归档，数据保留）。
 
 ### 5.4 跳转记录
 
@@ -464,7 +464,8 @@ docwrite status [--json]
 docwrite next [--json]
 docwrite history [--json]
 docwrite scope show|set --by user --quote "..."
-docwrite archive --reason "..."
+docwrite archive <项目名> [--reason "..."]   # 从面板归档；只写 .run/panel.json
+docwrite unarchive <项目名>                  # 恢复归档
 
 # 用户确认
 docwrite approve <U0..U7> --by user --quote "..."

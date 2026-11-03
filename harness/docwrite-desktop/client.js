@@ -28,6 +28,15 @@ window.__ModuleLoader__.load({
         scope: '作用域',
         approvals: '确认',
         workspace: '工作区',
+        archive: '归档',
+        restore: '恢复',
+        archived: '已归档',
+        showArchived: '显示已归档',
+        hideArchived: '隐藏已归档',
+        archiveHint: '从面板隐藏，数据保留，可随时恢复',
+        archiveFailed: '归档失败',
+        allArchived: '活跃项目都已归档',
+        allArchivedHint: '点右上角“显示已归档”查看并恢复。',
       },
       en: {
         title: 'Doc Workshop',
@@ -48,6 +57,15 @@ window.__ModuleLoader__.load({
         scope: 'Scope',
         approvals: 'Gates',
         workspace: 'Workspace',
+        archive: 'Archive',
+        restore: 'Restore',
+        archived: 'Archived',
+        showArchived: 'Show archived',
+        hideArchived: 'Hide archived',
+        archiveHint: 'Hide from the panel; data is kept and can be restored',
+        archiveFailed: 'Archive failed',
+        allArchived: 'All active projects are archived',
+        allArchivedHint: 'Use “Show archived” at the top right to view and restore them.',
       },
     }
 
@@ -77,6 +95,7 @@ window.__ModuleLoader__.load({
         justifyContent: 'space-between',
         gap: '16px',
       },
+      headerActions: { display: 'flex', alignItems: 'center', gap: '8px', flex: '0 0 auto' },
       title: { margin: 0, fontSize: '22px', fontWeight: 650, letterSpacing: '0.01em' },
       subtitle: {
         marginTop: '6px',
@@ -305,7 +324,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function ProjectCard({ project, lang }) {
+    function ProjectCard({ project, lang, onToggleArchive, busy }) {
       const t = T[lang]
       const stages = Array.isArray(project.stages) ? project.stages : []
       const done = stages.filter((stage) => stage.status === 'done' || stage.status === 'waived').length
@@ -314,7 +333,7 @@ window.__ModuleLoader__.load({
       const next = stages.find((stage) => stage.id === project.next)
       return h(
         'section',
-        { style: S.card },
+        { style: { ...S.card, opacity: project.archived ? 0.75 : 1 } },
         h(
           'div',
           { style: S.cardHead },
@@ -332,6 +351,13 @@ window.__ModuleLoader__.load({
           h('span', null, `${t.approvals} ${(project.approvals ?? []).join(' ') || '—'}`),
           project.workspace
             ? h('span', { style: S.mono, title: project.workspace }, `${t.workspace} ${project.workspace}`)
+            : null,
+          project.archived
+            ? h(
+                'span',
+                { style: { color: 'var(--dsw-alias-state-warn-primary)' } },
+                `${t.archived}${project.archivedAt ? ` ${new Date(project.archivedAt).toLocaleString()}` : ''}`,
+              )
             : null,
           project.updatedAt
             ? h('span', null, `${t.updated} ${new Date(project.updatedAt).toLocaleString()}`)
@@ -374,6 +400,17 @@ window.__ModuleLoader__.load({
             { style: S.mono },
             next ? `${t.next} ${next.id} ${next.name}` : project.next ? `${t.next} ${project.next}` : '—',
           ),
+          h(
+            'button',
+            {
+              type: 'button',
+              style: { ...S.refresh, padding: '3px 10px', fontSize: '12px' },
+              onClick: () => onToggleArchive(project),
+              disabled: busy,
+              title: t.archiveHint,
+            },
+            busy ? '…' : project.archived ? t.restore : t.archive,
+          ),
         ),
       )
     }
@@ -384,6 +421,37 @@ window.__ModuleLoader__.load({
         const t = T[lang]
         const { data, error, refresh } = useSnapshot()
         const projects = Array.isArray(data?.projects) ? data.projects : []
+        const [showArchived, setShowArchived] = React.useState(false)
+        const [busyKey, setBusyKey] = React.useState(null)
+        const [actionError, setActionError] = React.useState(null)
+        const archivedCount = projects.filter((project) => project.archived).length
+        const visible = showArchived ? projects : projects.filter((project) => !project.archived)
+
+        const toggleArchive = async (project) => {
+          const key = `${project.workspace ?? ''}:${project.project}`
+          setBusyKey(key)
+          setActionError(null)
+          try {
+            const response = await fetch('/docwrite/archive', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                root: project.workspace,
+                project: project.project,
+                archived: !project.archived,
+              }),
+            })
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}))
+              throw new Error(payload.error ?? `HTTP ${response.status}`)
+            }
+            refresh()
+          } catch (err) {
+            setActionError(err?.message ?? String(err))
+          } finally {
+            setBusyKey(null)
+          }
+        }
         return h(
           'div',
           { style: S.page },
@@ -397,14 +465,29 @@ window.__ModuleLoader__.load({
               h('div', { style: S.subtitle }, t.subtitle),
             ),
             h(
-              'button',
-              {
-                type: 'button',
-                style: S.refresh,
-                onClick: refresh,
-                'aria-label': t.refresh,
-              },
-              t.refresh,
+              'div',
+              { style: S.headerActions },
+              archivedCount > 0
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      style: S.refresh,
+                      onClick: () => setShowArchived((value) => !value),
+                    },
+                    showArchived ? t.hideArchived : `${t.showArchived} (${archivedCount})`,
+                  )
+                : null,
+              h(
+                'button',
+                {
+                  type: 'button',
+                  style: S.refresh,
+                  onClick: refresh,
+                  'aria-label': t.refresh,
+                },
+                t.refresh,
+              ),
             ),
           ),
           error
@@ -415,6 +498,9 @@ window.__ModuleLoader__.load({
                 h('div', { style: { marginTop: '4px', opacity: 0.85 } }, t.routeHint),
               )
             : null,
+          actionError
+            ? h('div', { style: S.error }, `${t.archiveFailed}：${actionError}`)
+            : null,
           !data && !error ? h('div', { style: S.empty }, t.loading) : null,
           data && projects.length === 0
             ? h(
@@ -424,15 +510,25 @@ window.__ModuleLoader__.load({
                 h('div', { style: { marginTop: '6px' } }, t.emptyHint),
               )
             : null,
-          projects.length
+          data && projects.length > 0 && visible.length === 0
+            ? h(
+                'div',
+                { style: S.empty },
+                h('div', { style: { fontSize: '15px', color: 'var(--dsw-alias-label-primary)' } }, t.allArchived),
+                h('div', { style: { marginTop: '6px' } }, t.allArchivedHint),
+              )
+            : null,
+          visible.length
             ? h(
                 'div',
                 { style: S.grid },
-                projects.map((project) =>
+                visible.map((project) =>
                   h(ProjectCard, {
                     key: `${project.workspace ?? ''}:${project.project}`,
                     project,
                     lang,
+                    onToggleArchive: toggleArchive,
+                    busy: busyKey === `${project.workspace ?? ''}:${project.project}`,
                   }),
                 ),
               )
