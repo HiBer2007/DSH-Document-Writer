@@ -360,6 +360,57 @@ export function apply(ctx, config) {
     })
   }
 
+  function runGit(args, timeout = 30000) {
+    return new Promise((resolve, reject) => {
+      execFile(
+        'git',
+        args,
+        { timeout, windowsHide: true, maxBuffer: 2 * 1024 * 1024 },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error((stderr || error.message || 'git 调用失败').trim()))
+            return
+          }
+          resolve(stdout)
+        },
+      )
+    })
+  }
+
+  /** 仅支持 git 安装：工作区干净时把当前分支快进到最新 Release tag。 */
+  async function applyUpdate() {
+    const repoRoot = resolve(packageDir, '..', '..')
+    if (!existsSync(join(repoRoot, '.git'))) {
+      throw new Error('当前安装不是 git 仓库，无法自动更新；请按 Release 页面说明重装插件')
+    }
+    const status = await runGit(['-C', repoRoot, 'status', '--porcelain'])
+    if (status.trim()) {
+      throw new Error('仓库有未提交修改，不能自动更新；请先提交或 stash 后重试')
+    }
+    const branch = (await runGit(['-C', repoRoot, 'rev-parse', '--abbrev-ref', 'HEAD'])).trim()
+    if (!branch || branch === 'HEAD') {
+      throw new Error('当前是 detached HEAD，不能自动更新；请切回 main 或 release 分支')
+    }
+    const latest = await checkUpdate()
+    if (!latest.updateAvailable) {
+      return { ok: true, upToDate: true, current: latest.current, message: '已是最新版本' }
+    }
+    if (!/^v?\d+\.\d+\.\d+$/.test(latest.tag)) {
+      throw new Error(`Release tag 格式不支持：${latest.tag}`)
+    }
+    await runGit(['-C', repoRoot, 'fetch', '--tags', '--force'], 60000)
+    const output = await runGit(['-C', repoRoot, 'merge', '--ff-only', latest.tag], 60000)
+    updateCache = null
+    return {
+      ok: true,
+      upToDate: false,
+      tag: latest.tag,
+      branch,
+      message: `已更新到 ${latest.tag}；请重启 DSH 或重新加载插件后生效`,
+      output: output.trim(),
+    }
+  }
+
   async function checkUpdate() {
     if (updateCache && Date.now() - updateCache.at < 10 * 60 * 1000) return updateCache.value
     let release
@@ -753,6 +804,36 @@ export function apply(ctx, config) {
               url: `https://github.com/${REPO}/releases`,
             }),
           )
+        }
+      },
+    }),
+  )
+
+  // ── 立即更新（git 安装时快进到最新 Release tag） ─────────────────────
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: 'exact',
+      path: '/docwrite/update/apply',
+      handler: async (req, res) => {
+        const send = (status, value) => {
+          res.statusCode = status
+          res.setHeader('content-type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify(value))
+        }
+        if (req.method !== 'POST') {
+          send(405, { ok: false, error: '只支持 POST' })
+          return
+        }
+        try {
+          const value = await applyUpdate()
+          send(200, value)
+        } catch (err) {
+          send(200, {
+            ok: false,
+            current: currentVersion,
+            error: err?.message ?? String(err),
+            url: `https://github.com/${REPO}/releases`,
+          })
         }
       },
     }),

@@ -1,6 +1,6 @@
 {
   "name": "docwrite",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "文档工坊：12 阶段强制流水线的文档写作工具链",

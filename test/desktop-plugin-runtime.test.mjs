@@ -139,7 +139,7 @@ function makeCtx({
   return { ctx, tools, guards, routes, questions }
 }
 
-test('desktop Host 插件：注册 13 个 docwrite 工具与四条路由', () => {
+test('desktop Host 插件：注册 13 个 docwrite 工具与五条路由', () => {
   const { root, dir } = makeRoot()
   try {
     const { ctx, tools, routes } = makeCtx()
@@ -162,10 +162,16 @@ test('desktop Host 插件：注册 13 个 docwrite 工具与四条路由', () =>
         'docwrite_deliver',
       ],
     )
-    assert.equal(routes.length, 4)
+    assert.equal(routes.length, 5)
     assert.deepEqual(
       routes.map((route) => route.path).sort(),
-      ['/docwrite/archive', '/docwrite/presets', '/docwrite/state', '/docwrite/update'],
+      [
+        '/docwrite/archive',
+        '/docwrite/presets',
+        '/docwrite/state',
+        '/docwrite/update',
+        '/docwrite/update/apply',
+      ],
     )
     const stateRoute = routes.find((route) => route.path === '/docwrite/state')
 

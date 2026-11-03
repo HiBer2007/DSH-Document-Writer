@@ -35,8 +35,10 @@
   - 预设组合内联而不是 include：include 的子行在启动期 audit 成 “never started”，预设会进不了工作模式选择器
   - persona suffix 只写静态文本：DSH prompt 变量只注册 `provider` / `model`，`{{cwd}}` 会报 unknown prompt variable
 - **追加：检查更新** ✅
-  - 面板右上角「检查更新」；CLI `docwrite update [--json]`；只查 GitHub 最新 Release，不自动安装
-  - Host `GET /docwrite/update` 比较当前版本与最新 tag，10 分钟缓存；有新版给 Release 链接
+  - 面板右上角「检查更新」；CLI `docwrite update [--json]`；打开面板后每 6 小时自动检查
+  - 有新版时右下角弹窗显示 Release 说明，提供「立即更新」和「跳过此版本」
+  - 「立即更新」只对 git 安装生效：工作区干净时把当前分支快进到最新 Release tag；失败给 Release 链接
+  - Host `GET /docwrite/update` + `POST /docwrite/update/apply`；10 分钟缓存；Node fetch 证书失败时用 `gh api` 兜底
 - **追加：使用声明与首次安装弹窗** ✅
   - Desktop 首次加载在 DSH 内弹模态：仅学习交流、勿用于学术用途、守法、免责 + 首次安装提示
   - 点“我已知悉并同意”后写 localStorage；面板右上角「声明」可重开

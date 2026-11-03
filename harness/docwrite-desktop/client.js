@@ -46,6 +46,7 @@ window.__ModuleLoader__.load({
         latestVersion: '最新',
         openRelease: '打开 Release',
         updateFailed: '检查更新失败',
+        skippedVersion: '已跳过此版本',
         close: '关闭',
       },
       en: {
@@ -85,6 +86,7 @@ window.__ModuleLoader__.load({
         latestVersion: 'latest',
         openRelease: 'Open release',
         updateFailed: 'Update check failed',
+        skippedVersion: 'Skipped version',
         close: 'Close',
       },
     }
@@ -576,6 +578,135 @@ window.__ModuleLoader__.load({
       ack.focus()
     }
 
+    const UPDATE_SKIP_KEY = 'docwrite.update.skipVersion'
+    const UPDATE_LAST_CHECK = 'docwrite.update.lastCheck'
+
+    function showUpdateToast(data) {
+      if (typeof document === 'undefined' || !data?.updateAvailable) return
+      const existing = document.querySelector('[data-docwrite-update-toast]')
+      if (existing) existing.remove()
+
+      const toast = document.createElement('div')
+      toast.setAttribute('data-docwrite-update-toast', '1')
+      toast.setAttribute('role', 'status')
+      toast.style.cssText =
+        'position:fixed;right:24px;bottom:24px;z-index:2147482000;' +
+        'width:min(420px,calc(100vw - 32px));max-height:70vh;overflow:auto;box-sizing:border-box;' +
+        'background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary,#111);' +
+        'border:1px solid var(--dsw-alias-border-l1,#ddd);border-radius:12px;padding:16px 18px;' +
+        'box-shadow:0 18px 60px rgba(0,0,0,.35);' +
+        'font:13px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;'
+
+      const head = document.createElement('div')
+      head.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:12px;'
+
+      const title = document.createElement('div')
+      title.textContent = `发现新版本 ${data.tag}`
+      title.style.cssText = 'font-size:15px;font-weight:650;line-height:1.4;'
+
+      const close = document.createElement('button')
+      close.type = 'button'
+      close.textContent = '×'
+      close.setAttribute('aria-label', '关闭')
+      close.style.cssText =
+        'border:none;background:transparent;color:var(--dsw-alias-label-secondary,#666);' +
+        'font-size:20px;line-height:1;cursor:pointer;padding:0 2px;'
+      close.onclick = () => toast.remove()
+      head.append(title, close)
+
+      const sub = document.createElement('div')
+      sub.textContent = `当前 ${data.current} → 最新 ${data.latest}`
+      sub.style.cssText = 'margin-top:4px;color:var(--dsw-alias-label-secondary,#666);font-size:12px;'
+
+      const notes = document.createElement('div')
+      notes.textContent = data.notes || '（这个 Release 没有填写更新说明）'
+      notes.style.cssText =
+        'margin-top:10px;max-height:150px;overflow:auto;white-space:pre-wrap;' +
+        'color:var(--dsw-alias-label-secondary,#555);font-size:12px;line-height:1.65;'
+
+      const status = document.createElement('div')
+      status.style.cssText = 'margin-top:10px;font-size:12px;color:var(--dsw-alias-label-secondary,#666);'
+
+      const actions = document.createElement('div')
+      actions.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;'
+
+      const update = document.createElement('button')
+      update.type = 'button'
+      update.textContent = '立即更新'
+      update.style.cssText =
+        'border:1px solid #1d4ed8;border-radius:8px;padding:7px 14px;cursor:pointer;' +
+        'font-size:13px;font-weight:600;background:#1d4ed8;color:#fff;'
+      update.onclick = async () => {
+        update.disabled = true
+        update.textContent = '更新中…'
+        status.textContent = '正在从 GitHub 快进到最新 Release…'
+        try {
+          const response = await fetch('/docwrite/update/apply', { method: 'POST' })
+          const result = await response.json()
+          if (!result.ok) throw new Error(result.error ?? `HTTP ${response.status}`)
+          if (result.upToDate) {
+            status.textContent = `已是最新版本 ${result.current ?? data.current}`
+            update.remove()
+            skip.remove()
+            return
+          }
+          status.textContent = result.message ?? `已更新到 ${result.tag}，请重启 DSH 生效`
+          update.textContent = '已更新'
+          update.disabled = true
+          skip.remove()
+        } catch (err) {
+          status.textContent = `更新失败：${err?.message ?? String(err)}`
+          update.disabled = false
+          update.textContent = '立即更新'
+          const link = document.createElement('a')
+          link.href = data.url
+          link.target = '_blank'
+          link.rel = 'noopener noreferrer'
+          link.textContent = '打开 Release 手动更新'
+          link.style.cssText = 'color:inherit;text-decoration:underline;font-size:12px;'
+          actions.append(link)
+        }
+      }
+
+      const skip = document.createElement('button')
+      skip.type = 'button'
+      skip.textContent = '跳过此版本'
+      skip.style.cssText =
+        'border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:8px;padding:7px 14px;' +
+        'cursor:pointer;font-size:13px;background:transparent;color:var(--dsw-alias-label-primary,#111);'
+      skip.onclick = () => {
+        try {
+          localStorage.setItem(UPDATE_SKIP_KEY, data.tag)
+        } catch {
+          // 隐私模式下仍然关闭弹窗。
+        }
+        toast.remove()
+      }
+
+      actions.append(update, skip)
+      toast.append(head, sub, notes, status, actions)
+      document.body.appendChild(toast)
+    }
+
+    async function maybeCheckUpdate() {
+      try {
+        const last = Number(localStorage.getItem(UPDATE_LAST_CHECK) ?? 0)
+        if (Number.isFinite(last) && Date.now() - last < 6 * 60 * 60 * 1000) return
+        const response = await fetch('/docwrite/update', {
+          cache: 'no-store',
+          headers: { accept: 'application/json' },
+        })
+        if (!response.ok) return
+        const data = await response.json()
+        localStorage.setItem(UPDATE_LAST_CHECK, String(Date.now()))
+        if (!data.ok || !data.updateAvailable) return
+        if (localStorage.getItem(UPDATE_SKIP_KEY) === data.tag) return
+        showUpdateToast(data)
+      } catch {
+        // 离线或 GitHub 不可达时静默；用户可手动检查。
+      }
+    }
+
     function makePanel(ctx) {
       return function Panel(props) {
         const lang = useLang(ctx)
@@ -599,7 +730,23 @@ window.__ModuleLoader__.load({
               headers: { accept: 'application/json' },
             })
             if (!response.ok) throw new Error(`HTTP ${response.status}`)
-            setUpdateInfo(await response.json())
+            const data = await response.json()
+            if (data.ok && data.updateAvailable) {
+              let skipped = null
+              try {
+                skipped = localStorage.getItem(UPDATE_SKIP_KEY)
+              } catch {
+                skipped = null
+              }
+              if (skipped === data.tag) {
+                setUpdateInfo({ ...data, skipped: true })
+              } else {
+                setUpdateInfo(null)
+                showUpdateToast(data)
+              }
+            } else {
+              setUpdateInfo(data)
+            }
           } catch (err) {
             setUpdateInfo({ ok: false, error: err?.message ?? String(err) })
           } finally {
@@ -708,9 +855,11 @@ window.__ModuleLoader__.load({
                   'span',
                   null,
                   updateInfo.ok
-                    ? updateInfo.updateAvailable
-                      ? `${t.updateAvailable} ${updateInfo.tag}（${t.currentVersion} ${updateInfo.current}）`
-                      : `${t.upToDate}（${updateInfo.current}）`
+                    ? updateInfo.skipped
+                      ? `${t.skippedVersion} ${updateInfo.tag}`
+                      : updateInfo.updateAvailable
+                        ? `${t.updateAvailable} ${updateInfo.tag}（${t.currentVersion} ${updateInfo.current}）`
+                        : `${t.upToDate}（${updateInfo.current}）`
                     : `${t.updateFailed}：${updateInfo.error ?? 'unknown'}`,
                 ),
                 updateInfo.url
@@ -792,6 +941,7 @@ window.__ModuleLoader__.load({
           } else {
             showDisclaimer()
           }
+          setTimeout(() => maybeCheckUpdate(), 1800)
         }
       },
     }
