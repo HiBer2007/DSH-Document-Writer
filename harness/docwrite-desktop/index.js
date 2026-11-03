@@ -325,6 +325,27 @@ export function apply(ctx, config) {
     return currentSessionRoot(exec?.agent)
   }
 
+  /** 当前所有活会话的工作区里，已经初始化过 docwrite 项目的根。 */
+  function sessionRoots() {
+    const roots = []
+    const seen = new Set()
+    try {
+      for (const session of ctx.sessions?.list?.() ?? []) {
+        const cwd = session?.header?.cwd
+        if (typeof cwd !== 'string' || cwd.length === 0) continue
+        const key = cwd.toLowerCase()
+        if (seen.has(key)) continue
+        if (!existsSync(join(cwd, 'projects'))) continue
+        seen.add(key)
+        roots.push(cwd)
+      }
+    } catch {
+      // 没有 sessions 服务时回退到显式配置。
+    }
+    if (roots.length === 0 && configuredRoot) roots.push(configuredRoot)
+    return roots
+  }
+
   function requireRoot(root) {
     if (typeof root !== 'string' || root.length === 0) {
       throw new Error('无法确定工作区：请在已打开工作区的会话里调用，或给插件配置 root。')
@@ -370,14 +391,14 @@ export function apply(ctx, config) {
     const names = typeof project === 'string' && project.length > 0 ? [project] : listProjects(root)
     const projects = names.map((name) => {
       const found = projectState(root, name)
-      if (!found) return { project: name, error: 'state.json 不可读' }
+      if (!found) return { project: name, workspace: root, error: 'state.json 不可读' }
       let updatedAt = null
       try {
         updatedAt = statSync(found.path).mtime.toISOString()
       } catch {
         updatedAt = null
       }
-      return summarize(found.state, updatedAt)
+      return { ...summarize(found.state, updatedAt), workspace: root }
     })
     return { ok: true, root, generatedAt: new Date().toISOString(), projects }
   }
@@ -453,22 +474,47 @@ export function apply(ctx, config) {
           const url = new URL(typeof req.url === 'string' ? req.url : '/docwrite/state', 'http://127.0.0.1')
           const project = url.searchParams.get('project')
           const requested = url.searchParams.get('root')
-          const base =
-            requested && isAbsolute(requested) && existsSync(requested) && statSync(requested).isDirectory()
-              ? requested
-              : configuredRoot
-          if (!base) {
-            res.statusCode = 503
-            res.setHeader('content-type', 'application/json; charset=utf-8')
-            res.end(
-              JSON.stringify({
-                ok: false,
-                error: '没有指定工作区；面板应传入当前工作区的 root，或给插件配置 root。',
-              }),
-            )
-            return
+          let body
+          if (requested) {
+            if (!isAbsolute(requested) || !existsSync(requested) || !statSync(requested).isDirectory()) {
+              res.statusCode = 400
+              res.setHeader('content-type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ ok: false, error: `工作区不存在：${requested}` }))
+              return
+            }
+            body = JSON.stringify(snapshot(requested, project ?? undefined))
+          } else {
+            const roots = sessionRoots()
+            if (roots.length === 0) {
+              res.statusCode = 503
+              res.setHeader('content-type', 'application/json; charset=utf-8')
+              res.end(
+                JSON.stringify({
+                  ok: false,
+                  error: '没有找到已初始化 docwrite 项目的工作区；先在会话工作区运行 docwrite_init。',
+                }),
+              )
+              return
+            }
+            if (roots.length === 1) {
+              body = JSON.stringify(snapshot(roots[0], project ?? undefined))
+            } else {
+              const projects = []
+              for (const root of roots) {
+                try {
+                  projects.push(...snapshot(root, project ?? undefined).projects)
+                } catch {
+                  // 某个工作区暂时不可读时，仍展示其余工作区。
+                }
+              }
+              body = JSON.stringify({
+                ok: true,
+                roots,
+                generatedAt: new Date().toISOString(),
+                projects,
+              })
+            }
           }
-          const body = JSON.stringify(snapshot(base, project ?? undefined))
           res.statusCode = 200
           res.setHeader('content-type', 'application/json; charset=utf-8')
           res.setHeader('cache-control', 'no-store')

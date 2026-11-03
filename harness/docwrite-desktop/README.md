@@ -13,8 +13,9 @@
 3. **强制流程机**：`ctx.tools.guard()` 在 S8 成型前拒绝 `write` / `edit` 产出
    `<workspace>/projects/<name>/**/*.docx|pptx`；`docwrite_stage_done` 只能完成当前阶段。
    CLI 侧的门禁（哈希、评审、U 确认、回退预算）仍然是唯一判据。
-4. **GUI 区**：左侧栏「文档工坊」面板 + `main` 键控页面。面板把当前工作区路径传给
-   `GET /docwrite/state?root=...`，展示该工作区每个项目的 12 阶段进度、待确认点、blocked 原因。
+4. **GUI 区**：左侧栏「文档工坊」面板 + `main` 键控页面。面板读取
+   `GET /docwrite/state`，汇总所有活会话工作区里的项目，展示每个项目的 12 阶段进度、
+   待确认点、blocked 原因，并标注所属工作区。
 
 ## 安装
 
@@ -38,8 +39,8 @@ target: <绝对路径>\harness\docwrite-desktop
 - 空工作区运行 `docwrite_init` 时，会把插件 `skills/` 里缺失的 skill 复制到
   `<workspace>/.dsh/skills`，模型随后能看到 S1 的约束 schema。
 - 工具执行时用 `ctx.workingDirectory.ensure(agent)` 解析会话目录，并以它为 `cwd` 调 CLI。
-- GUI 面板通过 `useWorkspaces` 取当前工作区路径，显式传给 `/docwrite/state`；
-  没有传 `root` 时路由返回 503，不会猜测或读取别的目录。
+- GUI 面板不依赖 `useWorkspaces` 的当前项：它请求不带 `root` 的 `/docwrite/state`，
+  Host 汇总所有**活会话**里已初始化项目的工作区；显式 `?root=` 时只看那一个工作区。
 
 如果确实需要一个没有会话时的回退根，可以在 `cordis.patch.yml` 的
 `docwrite-harness` 行加 `config.root`；正常安装不需要。
@@ -52,11 +53,14 @@ target: <绝对路径>\harness\docwrite-desktop
 
 ```powershell
 # 预设已注册且可解析
-Invoke-RestMethod http://127.0.0.1:14558/docwrite/presets
+Invoke-RestMethod http://127.0.0.1:<port>/docwrite/presets
 
-# 指定工作区的流水线快照
+# 所有活会话工作区的流水线快照（面板用的就是这个）
+Invoke-RestMethod http://127.0.0.1:<port>/docwrite/state
+
+# 只看一个工作区
 $root = 'F:\你的文档工作区'
-Invoke-RestMethod ("http://127.0.0.1:14558/docwrite/state?root=" + [uri]::EscapeDataString($root))
+Invoke-RestMethod ("http://127.0.0.1:<port>/docwrite/state?root=" + [uri]::EscapeDataString($root))
 
 # 工具已挂载（在会话里）
 #   docwrite_init / docwrite_constraints / docwrite_status / docwrite_next

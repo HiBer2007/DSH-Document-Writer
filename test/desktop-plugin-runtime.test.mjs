@@ -49,6 +49,7 @@ function makeCtx({
   realSubprocess = false,
   answer = { selected: ['合格，可以进入下一步'] },
   sessionCwd = null,
+  sessionCwds = null,
 } = {}) {
   const tools = []
   const guards = []
@@ -124,14 +125,15 @@ function makeCtx({
       return typeof disposer === 'function' ? disposer : () => {}
     },
   }
-  if (sessionCwd) {
+  const roots = sessionCwds ?? (sessionCwd ? [sessionCwd] : [])
+  if (roots.length > 0) {
     ctx.workingDirectory = {
-      get: () => sessionCwd,
-      ensure: async () => sessionCwd,
+      get: () => roots[0],
+      ensure: async () => roots[0],
     }
     ctx.sessions = {
-      get: () => ({ header: { cwd: sessionCwd } }),
-      list: () => [{ header: { cwd: sessionCwd } }],
+      get: () => ({ header: { cwd: roots[0] } }),
+      list: () => roots.map((cwd) => ({ header: { cwd } })),
     }
   }
   return { ctx, tools, guards, routes, questions }
@@ -380,6 +382,41 @@ test('desktop Host 插件：无 root 配置时按会话工作区运行', async (
     assert.match(denied, /强制流程机/)
   } finally {
     rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop Host 插件：无 root 时聚合所有活会话工作区', () => {
+  const first = makeRoot()
+  const second = makeRoot()
+  writeProjectState(join(second.root, 'projects', '另一个'), '另一个')
+  try {
+    const { ctx, routes } = makeCtx({ sessionCwds: [first.root, second.root] })
+    apply(ctx, {})
+    const stateRoute = routes.find((route) => route.path === '/docwrite/state')
+    const response = {
+      statusCode: 0,
+      headers: {},
+      body: '',
+      setHeader(name, headerValue) {
+        this.headers[name] = headerValue
+      },
+      end(body) {
+        this.body = body
+      },
+    }
+    stateRoute.handler({ url: '/docwrite/state' }, response)
+    assert.equal(response.statusCode, 200)
+    const payload = JSON.parse(response.body)
+    assert.deepEqual(payload.roots, [first.root, second.root])
+    assert.equal(payload.projects.length, 3)
+    assert.ok(payload.projects.every((project) => typeof project.workspace === 'string'))
+    assert.equal(
+      payload.projects.find((project) => project.project === '另一个').workspace,
+      second.root,
+    )
+  } finally {
+    rmSync(first.root, { recursive: true, force: true })
+    rmSync(second.root, { recursive: true, force: true })
   }
 })
 

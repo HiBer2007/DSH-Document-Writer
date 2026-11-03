@@ -59,7 +59,7 @@ node bin/docwrite.mjs mode uninstall --profile dsh-tui
 ## 在 DSH Desktop 里使用
 
 Desktop 插件包在 `harness/docwrite-desktop`。插件**不绑定固定路径**：每次工具调用都解析
-当前会话的工作区，GUI 面板取最近活会话的 cwd。直接安装：
+当前会话的工作区，GUI 面板汇总所有活会话工作区里的项目。直接安装：
 
 ```
 plugin_manager  action: install_bundle
