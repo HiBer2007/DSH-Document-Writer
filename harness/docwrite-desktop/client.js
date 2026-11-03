@@ -37,6 +37,7 @@ window.__ModuleLoader__.load({
         archiveFailed: '归档失败',
         allArchived: '活跃项目都已归档',
         allArchivedHint: '点右上角“显示已归档”查看并恢复。',
+        disclaimer: '声明',
       },
       en: {
         title: 'Doc Workshop',
@@ -66,6 +67,7 @@ window.__ModuleLoader__.load({
         archiveFailed: 'Archive failed',
         allArchived: 'All active projects are archived',
         allArchivedHint: 'Use “Show archived” at the top right to view and restore them.',
+        disclaimer: 'Notice',
       },
     }
 
@@ -415,6 +417,127 @@ window.__ModuleLoader__.load({
       )
     }
 
+    const DISCLAIMER_KEY = 'docwrite.disclaimer.v1.1.0'
+
+    function showDisclaimer(force = false) {
+      if (typeof document === 'undefined' || typeof window === 'undefined') return
+      try {
+        if (!force && localStorage.getItem(DISCLAIMER_KEY) === '1') return
+      } catch {
+        // 隐私模式下 localStorage 可能不可用；每次加载都提示。
+      }
+      if (document.querySelector('[data-docwrite-disclaimer]')) return
+
+      const overlay = document.createElement('div')
+      overlay.setAttribute('data-docwrite-disclaimer', '1')
+      overlay.setAttribute('role', 'dialog')
+      overlay.setAttribute('aria-modal', 'true')
+      overlay.setAttribute('aria-label', '文档工坊使用声明')
+      overlay.style.cssText =
+        'position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.5);' +
+        'display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;'
+
+      const card = document.createElement('div')
+      card.style.cssText =
+        'width:min(640px,100%);max-height:86vh;overflow:auto;box-sizing:border-box;' +
+        'background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary,#111);' +
+        'border:1px solid var(--dsw-alias-border-l1,#ddd);border-radius:14px;padding:24px 26px;' +
+        'box-shadow:0 24px 80px rgba(0,0,0,.35);' +
+        'font:14px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;'
+
+      const title = document.createElement('h2')
+      title.textContent = '文档工坊 · 使用声明'
+      title.style.cssText = 'margin:0 0 4px;font-size:18px;line-height:1.4;font-weight:650;'
+
+      const intro = document.createElement('p')
+      intro.textContent = '首次使用前请阅读并确认：'
+      intro.style.cssText = 'margin:0 0 8px;color:var(--dsw-alias-label-secondary,#666);font-size:13px;'
+
+      const list = document.createElement('ol')
+      list.style.cssText = 'margin:8px 0 10px 20px;padding:0;'
+      for (const text of [
+        '本项目仅用于学习与交流，不构成写作服务、学术成果、法律意见或任何形式的交付承诺。',
+        '请勿用于学术用途：包括代写论文、课程作业、考试答卷、学位申请材料，以及任何违反学校、期刊、机构学术诚信规定的用途。',
+        '请遵守所在国家/地区的法律法规、学校与机构规范及相关平台条款；不得伪造数据、抄袭、规避审查或实施其他违法行为。',
+        '因使用或滥用本项目造成的后果由使用者自行承担；作者与贡献者不承担责任。',
+      ]) {
+        const item = document.createElement('li')
+        item.textContent = text
+        item.style.margin = '4px 0'
+        list.appendChild(item)
+      }
+
+      const install = document.createElement('p')
+      install.textContent =
+        '首次安装提示：用绝对路径安装 bundle → 刷新页面 → 新建会话选择「文档工坊」→ ' +
+        '空工作区先运行 docwrite_init。若工作模式菜单没有「文档工坊」，访问 ' +
+        '/docwrite/presets 确认 broken 为 null，再重载 bundle。'
+      install.style.cssText =
+        'margin:10px 0;padding:10px 12px;border-radius:8px;' +
+        'background:var(--dsw-alias-bg-layer-2,#f6f6f6);' +
+        'color:var(--dsw-alias-label-secondary,#555);font-size:13px;'
+
+      const neutral = document.createElement('p')
+      neutral.textContent =
+        '本声明面向使用者，不影响工具的正常文档写作功能；确认后照常使用。'
+      neutral.style.cssText =
+        'margin:8px 0 0;color:var(--dsw-alias-label-secondary,#666);font-size:13px;'
+
+      const english = document.createElement('p')
+      english.textContent =
+        'For learning and exchange only. Do not use for academic purposes. ' +
+        'Comply with applicable laws and institutional policies. Use at your own risk.'
+      english.style.cssText = 'margin:8px 0 0;color:var(--dsw-alias-label-secondary,#777);font-size:12px;'
+
+      const link = document.createElement('a')
+      link.href = 'https://github.com/HiBer2007/DSH-Document-Writer/blob/main/DISCLAIMER.md'
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      link.textContent = '查看完整声明与 README'
+      link.style.cssText = 'display:inline-block;margin-top:10px;color:var(--dsw-alias-brand-primary,#2563eb);'
+
+      const actions = document.createElement('div')
+      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap;'
+
+      const close = () => {
+        document.removeEventListener('keydown', onKey)
+        overlay.remove()
+      }
+      const onKey = (event) => {
+        if (event.key === 'Escape') close()
+      }
+
+      const ack = document.createElement('button')
+      ack.type = 'button'
+      ack.textContent = '我已知悉并同意'
+      ack.style.cssText =
+        'border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:14px;' +
+        'background:var(--dsw-alias-brand-primary,#2563eb);color:#fff;'
+      ack.onclick = () => {
+        try {
+          localStorage.setItem(DISCLAIMER_KEY, '1')
+        } catch {
+          // 写不进去也不阻塞关闭。
+        }
+        close()
+      }
+
+      const later = document.createElement('button')
+      later.type = 'button'
+      later.textContent = '暂不使用'
+      later.style.cssText =
+        'border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:8px;padding:8px 16px;' +
+        'cursor:pointer;font-size:14px;background:transparent;color:var(--dsw-alias-label-primary,#111);'
+      later.onclick = close
+
+      actions.append(ack, later)
+      card.append(title, intro, list, install, neutral, english, link, actions)
+      overlay.appendChild(card)
+      document.body.appendChild(overlay)
+      document.addEventListener('keydown', onKey)
+      ack.focus()
+    }
+
     function makePanel(ctx) {
       return function Panel(props) {
         const lang = useLang(ctx)
@@ -467,6 +590,15 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { style: S.headerActions },
+              h(
+                'button',
+                {
+                  type: 'button',
+                  style: S.refresh,
+                  onClick: () => showDisclaimer(true),
+                },
+                t.disclaimer,
+              ),
               archivedCount > 0
                 ? h(
                     'button',
@@ -552,6 +684,13 @@ window.__ModuleLoader__.load({
         ctx.slots.inject('main', () =>
           ctx.slots.register({ name: 'main', key: 'docwrite' }, makePanel(ctx)),
         )
+        if (typeof document !== 'undefined') {
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => showDisclaimer(), { once: true })
+          } else {
+            showDisclaimer()
+          }
+        }
       },
     }
   },

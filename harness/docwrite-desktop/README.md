@@ -1,5 +1,9 @@
 # 文档工坊 for DSH Desktop
 
+> 仅用于学习与交流，请勿用于学术用途；请遵守有关法律法规。完整声明见
+> [DISCLAIMER.md](../../DISCLAIMER.md)。本声明面向使用者，不是模型拒答规则；
+> 正常文档写作请求照常执行。
+
 这个 bundle 把文档工坊接进 DSH Desktop（`desktop` profile），并按**当前会话工作区**运行：
 
 1. **预设**：注册 `docwrite`（显示名「文档工坊」），组合来自
@@ -32,6 +36,9 @@ target: <绝对路径>\harness\docwrite-desktop
 - `list_plugins` 出现 `preset-docwrite` 与 `docwrite-harness`；
 - `GET /docwrite/presets` 里 `docwrite` 为 `resolved=true, broken=null`；
 - 左侧栏出现「文档工坊」图标；新会话的预设菜单出现「文档工坊」。
+
+**首次加载**会在 DSH 内弹出使用声明与首次安装提示；点“我已知悉并同意”后写入
+本地记录，不再自动弹。之后可从面板右上角「声明」按钮重开。
 
 ## 工作区与 CLI
 

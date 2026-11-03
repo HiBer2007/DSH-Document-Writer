@@ -11,6 +11,22 @@
 - **硬门禁在 CLI**：产物、哈希、评审、U 确认、回退预算都由 `stage done` 检查。
 - **DSH 原生**：TUI 用声明式 preset 行；Desktop 用 bundle，带工具、门禁和只读面板。
 
+## 声明
+
+> 完整声明见 [DISCLAIMER.md](DISCLAIMER.md)。Desktop 插件首次加载会在 DSH 内弹窗，
+> 需要点“我已知悉并同意”后才会记录已读；之后可从面板的「声明」按钮重开。
+
+- 本项目**仅用于学习与交流**，不构成写作服务、学术成果、法律意见或任何形式的交付承诺。
+- **请勿用于学术用途**：包括但不限于代写论文、课程作业、考试答卷、学位申请材料，
+  以及任何违反学校、期刊、机构学术诚信规定的用途。
+- 使用者应自行遵守所在国家/地区的法律法规、学校与机构规范、以及相关平台的服务条款；
+  不得用本项目伪造数据、抄袭、规避审查或实施其他违法行为。
+- 因使用或滥用本项目造成的任何后果，由使用者自行承担；作者与贡献者不承担责任。
+- 本声明面向使用者，**不是模型的行为指令**，不会让模型拒绝正常的文档写作请求；
+  是否合规由使用者判断。
+- 软件按“现状”提供，不附带任何明示或暗示担保。详见
+  [LICENSE](LICENSE)、[COPYING](COPYING)、[NOTICE](NOTICE)。
+
 ## 12 阶段
 
 | 阶段 | 名称 | 门禁 | 产物 |
@@ -49,8 +65,8 @@ node bin/docwrite.mjs help
 | 引用 | 用途 |
 | --- | --- |
 | `main` | 开发分支，日常提交先到这里 |
-| `release` | 稳定发布快照；当前指向 `v0.1.0` |
-| `v0.1.0` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
+| `release` | 稳定发布快照；当前指向 `v1.1.0` |
+| `v1.1.0` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
 
 - **用稳定版**：克隆 `release` 或检出标签：
 
@@ -59,7 +75,7 @@ node bin/docwrite.mjs help
   # 或
   git clone git@github.com:HiBer2007/DSH-Document-Writer.git
   cd DSH-Document-Writer
-  git checkout v0.1.0
+  git checkout v1.1.0
   ```
 
 - **跟进最新功能**：用 `main`。
@@ -70,8 +86,8 @@ node bin/docwrite.mjs help
   npm test
   git switch release
   git merge --ff-only main
-  git tag -a v0.1.1 -m "文档工坊 v0.1.1"
-  git push origin release v0.1.1
+  git tag -a v1.1.1 -m "文档工坊 v1.1.1"
+  git push origin release v1.1.1
   git switch main
   ```
 
@@ -80,7 +96,26 @@ node bin/docwrite.mjs help
 
 - `release` 只放可发布状态，不直接加功能提交；功能、重构、文档修改先走 `main`。
 - 发布前把 `package.json` 的 `version` 与标签改成同一个版本号；当前是
-  `0.1.0` / `v0.1.0`。
+  `1.1.0` / `v1.1.0`。
+
+## 首次安装
+
+### TUI
+
+1. Node.js ≥ 20，先跑 `npm install`、`npm test`；
+2. `node bin/docwrite.mjs mode install --profile dsh-tui`；
+3. **重启 TUI**，`/preset` 里才会出现「文档工坊」；
+4. 新建会话，先运行 `node bin/docwrite.mjs status`（或让模型调用 status 工具）。
+
+### Desktop 插件
+
+1. 用 `plugin_manager` 以**绝对路径**安装 `harness/docwrite-desktop`；
+2. **刷新页面**，新建会话时选择「文档工坊」；
+3. 左侧栏出现「文档工坊」面板；空工作区先让模型调用 `docwrite_init`；
+4. 访问 `GET /docwrite/presets`，确认 `docwrite` 为 `resolved=true, broken=null`；
+5. 工作模式菜单没有「文档工坊」时：重载 bundle → 刷新页面；仍不行就看
+   `/docwrite/presets` 的 `resolveError` / `broken`；
+6. 首次加载会在 DSH 内弹出使用声明；点“我已知悉并同意”后写入本地记录，之后不再自动弹。
 
 ## 在 DSH TUI 里使用
 
@@ -166,4 +201,10 @@ docs/                   PLAN / WORKFLOW / SKILLS / STATUS / ACCEPTANCE
 
 ## License
 
-MIT
+GNU Lesser General Public License v3.0（LGPL-3.0-only）。
+
+- [LICENSE](LICENSE)：LGPL-3.0 全文
+- [COPYING](COPYING)：LGPL-3.0 引入的 GPL-3.0 全文
+- [NOTICE](NOTICE)：版权与许可声明
+
+本项目按“现状”提供，不附带任何担保；使用前请阅读 [DISCLAIMER.md](DISCLAIMER.md)。

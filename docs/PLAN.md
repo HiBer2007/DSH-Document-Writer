@@ -167,7 +167,10 @@ ESM，Node ≥ 20；运行时依赖 `fflate`（zip）与 `yaml`（清单校验�
 ├── presets\docwrite\          工作模式源文件
 ├── docs\                      三份文档
 ├── README.md                  开源说明与安装
-├── LICENSE                    MIT
+├── LICENSE                    LGPL-3.0 全文
+├── COPYING                    GPL-3.0 全文（LGPL-3.0 引入）
+├── NOTICE                     版权与许可声明
+├── DISCLAIMER.md              使用声明（仅学习交流、勿用于学术用途）
 └── projects\                  项目目录（本地个人文档，不进入开源仓库）
 ```
 

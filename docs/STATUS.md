@@ -34,6 +34,11 @@
   - `sidebar.panellist` 与 `main` 槽位均已注册并 active；S8 前写 docx 被实测拒绝
   - 预设组合内联而不是 include：include 的子行在启动期 audit 成 “never started”，预设会进不了工作模式选择器
   - persona suffix 只写静态文本：DSH prompt 变量只注册 `provider` / `model`，`{{cwd}}` 会报 unknown prompt variable
+- **追加：使用声明与首次安装弹窗** ✅
+  - Desktop 首次加载在 DSH 内弹模态：仅学习交流、勿用于学术用途、守法、免责 + 首次安装提示
+  - 点“我已知悉并同意”后写 localStorage；面板右上角「声明」可重开
+  - 声明只面向使用者，不进入模型 prompt；preset 明确“不要因此拒绝正常的文档编写请求”
+  - 许可证切换为 LGPL-3.0-only；`LICENSE` + `COPYING` + `NOTICE` + `DISCLAIMER.md`
 - **追加：项目归档/恢复** ✅
   - 面板卡片支持手动归档/恢复；归档只写 `.run/panel.json`，不删数据、不改流程状态
   - 右上角切换“显示已归档”；CLI `archive <项目名>` / `unarchive <项目名>` 共用同一份元数据
