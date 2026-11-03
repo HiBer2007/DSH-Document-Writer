@@ -40,6 +40,48 @@ node bin/docwrite.mjs help
 
 需要 Node.js ≥ 20。运行时依赖只有 `fflate` 与 `yaml`。
 
+默认克隆的是 `main`（开发分支）；要用稳定版，见下面的「版本与发布」。
+
+## 版本与发布
+
+仓库用两个长期分支 + 版本标签：
+
+| 引用 | 用途 |
+| --- | --- |
+| `main` | 开发分支，日常提交先到这里 |
+| `release` | 稳定发布快照；当前指向 `v0.1.0` |
+| `v0.1.0` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
+
+- **用稳定版**：克隆 `release` 或检出标签：
+
+  ```powershell
+  git clone --branch release git@github.com:HiBer2007/DSH-Document-Writer.git
+  # 或
+  git clone git@github.com:HiBer2007/DSH-Document-Writer.git
+  cd DSH-Document-Writer
+  git checkout v0.1.0
+  ```
+
+- **跟进最新功能**：用 `main`。
+- **发版流程**：
+
+  ```powershell
+  git switch main
+  npm test
+  git switch release
+  git merge --ff-only main
+  git tag -a v0.1.1 -m "文档工坊 v0.1.1"
+  git push origin release v0.1.1
+  git switch main
+  ```
+
+  如果 `main` 已经分叉、不能快进，用 `git merge --no-ff main`，或只 cherry-pick
+  要发布的提交。
+
+- `release` 只放可发布状态，不直接加功能提交；功能、重构、文档修改先走 `main`。
+- 发布前把 `package.json` 的 `version` 与标签改成同一个版本号；当前是
+  `0.1.0` / `v0.1.0`。
+
 ## 在 DSH TUI 里使用
 
 ```powershell
