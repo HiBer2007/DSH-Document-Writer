@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../harness/docwrite-desktop/index.js'
+import { apply as applyPreset } from '../harness/docwrite-desktop/preset.js'
 
 function writeProjectState(dir, name) {
   mkdirSync(join(dir, '.run'), { recursive: true })
@@ -286,6 +287,26 @@ test('desktop Host 插件：/docwrite/update 比较 GitHub 最新 Release', asyn
     assert.equal(payload.url, 'https://example.test/releases/v9.9.9')
   } finally {
     globalThis.fetch = originalFetch
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop 插件：面板入口不注册工具，预设入口不注册路由', () => {
+  const { root } = makeRoot()
+  try {
+    const panelCtx = makeCtx()
+    apply(panelCtx.ctx, { root, mode: 'panel' })
+    assert.equal(panelCtx.tools.length, 0)
+    assert.equal(panelCtx.guards.length, 0)
+    assert.equal(panelCtx.routes.length, 5)
+
+    const presetCtx = makeCtx({ sessionCwd: root })
+    delete presetCtx.ctx.webServer
+    applyPreset(presetCtx.ctx, { root })
+    assert.equal(presetCtx.tools.length, 13)
+    assert.equal(presetCtx.guards.length, 1)
+    assert.equal(presetCtx.routes.length, 0)
+  } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })

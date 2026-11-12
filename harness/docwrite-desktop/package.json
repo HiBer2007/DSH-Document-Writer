@@ -1,18 +1,20 @@
 {
   "name": "@local/dsh-docwrite",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "description": "文档工坊 for DSH Desktop: packaged docwrite tools, a hard stage gate, and a pipeline panel in the Web GUI.",
   "license": "LGPL-3.0-only",
   "exports": {
     ".": "./index.js",
+    "./preset": "./preset.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
   "files": [
     "index.js",
+    "preset.js",
     "client.js",
     "cordis.patch.yml",
     "locale/*.json",

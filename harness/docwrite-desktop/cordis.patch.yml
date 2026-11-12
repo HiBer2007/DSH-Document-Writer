@@ -149,6 +149,11 @@
 
           - id: present
             name: '@deepseek-ai/dsh-tool-present'
+          # Desktop-only：工具与门禁只在「文档工坊」预设内注册，避免侵入标准/极简模式。
+          - id: docwrite-tools
+            name: '@local/dsh-docwrite/preset'
 
     - id: docwrite-harness
       name: '@local/dsh-docwrite'
+      config:
+        mode: panel

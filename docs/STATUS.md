@@ -34,6 +34,9 @@
   - `sidebar.panellist` 与 `main` 槽位均已注册并 active；S8 前写 docx 被实测拒绝
   - 预设组合内联而不是 include：include 的子行在启动期 audit 成 “never started”，预设会进不了工作模式选择器
   - persona suffix 只写静态文本：DSH prompt 变量只注册 `provider` / `model`，`{{cwd}}` 会报 unknown prompt variable
+- **修复：docwrite 工具不再全局注入** ✅
+  - `index.js` 只保留面板路由（`mode: panel`）；工具/门禁移到 `preset.js`（`mode: tools`），作为「文档工坊」预设的子插件
+  - 标准/极简等其他模式不再出现 `docwrite_*` 工具，也不会把工具描述带进提示词；面板路由仍全局可用
 - **追加：检查更新** ✅
   - 面板右上角「检查更新」；CLI `docwrite update [--json]`；打开面板后每 6 小时自动检查
   - 有新版时右下角弹窗显示 Release 说明，提供「立即更新」和「跳过此版本」
@@ -91,7 +94,7 @@
 ## 测试
 
 ```
-npm test  →  136 tests, 0 fail
+npm test  →  137 tests, 0 fail
 ```
 
 覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。

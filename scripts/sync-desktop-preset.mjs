@@ -29,9 +29,14 @@ const patch = `# 由 scripts/sync-desktop-preset.mjs 从 presets/docwrite/agent.
         order: 6
         plugins:
 ${indented}
+          # Desktop-only：工具与门禁只在「文档工坊」预设内注册，避免侵入标准/极简模式。
+          - id: docwrite-tools
+            name: '@local/dsh-docwrite/preset'
 
     - id: docwrite-harness
       name: '@local/dsh-docwrite'
+      config:
+        mode: panel
 `
 
 writeFileSync(outPath, patch, 'utf8')

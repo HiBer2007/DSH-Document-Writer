@@ -50,13 +50,18 @@ test('desktop 插件：patch 内联预设行且与 agent.cordis.yml 一致', () 
   const host = rows.find((row) => row.id === 'docwrite-harness')
   assert.equal(preset.name, '@deepseek-ai/dsh-agent-preset')
   assert.equal(preset.config.id, 'docwrite')
-  assert.deepEqual(preset.config.plugins, agent)
+  const toolsRow = preset.config.plugins.find((row) => row.id === 'docwrite-tools')
+  assert.equal(toolsRow.name, '@local/dsh-docwrite/preset')
+  assert.deepEqual(
+    preset.config.plugins.filter((row) => row.id !== 'docwrite-tools'),
+    agent,
+  )
   assert.ok(preset.config.plugins.some((row) => row.id === 'persona'))
   assert.ok(preset.config.plugins.some((row) => row.id === 'tool-fs'))
   const persona = agent.find((row) => row.id === 'persona')
   assert.match(persona.config.prefix, /不要因此拒绝正常的文档编写请求/)
   assert.equal(host.name, '@local/dsh-docwrite')
-  assert.equal(host.config, undefined)
+  assert.equal(host.config.mode, 'panel')
 })
 
 test('desktop 插件：内置 CLI 运行时，工作区无 CLI 时也能运行', () => {

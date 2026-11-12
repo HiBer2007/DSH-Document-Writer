@@ -12,7 +12,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const name = 'docwrite-harness'
-export const inject = ['tools', 'subprocess', 'webServer', 'userQuestions', 'workingDirectory', 'sessions']
+export const inject = ['webServer', 'sessions']
 
 export const STAGES = [
   { id: 'S0', name: '受理', gate: 'soft' },
@@ -286,6 +286,7 @@ function readBody(req, limit = 64 * 1024) {
 }
 
 export function apply(ctx, config) {
+  const mode = config?.mode ?? 'all'
   const configuredRoot =
     typeof config?.root === 'string' && config.root.trim().length > 0 ? resolve(config.root) : null
   const packageDir = dirname(fileURLToPath(import.meta.url))
@@ -607,21 +608,7 @@ export function apply(ctx, config) {
     return { ok: true, root, generatedAt: new Date().toISOString(), projects }
   }
 
-  /** 每个工具调用都绑定到调用者会话的工作区，而不是插件安装时的固定路径。 */
-  async function toolContext(exec) {
-    const root = requireRoot(await sessionRoot(exec))
-    return {
-      root,
-      projectState: (project) => projectState(root, project),
-      listProjects: () => listProjects(root),
-      resolveProject: (project) => resolveProject(root, project),
-      snapshot: (project) => snapshot(root, project),
-      runCli: (args) => runCli(root, exec, args),
-      callCli: (args) => callCli(root, exec, args),
-      callCliJson: (args) => callCliJson(root, exec, args),
-    }
-  }
-
+  if (mode !== 'tools') {
   // ── GUI 数据路由（只读） ──────────────────────────────────────────────
   ctx.effect(() =>
     ctx.webServer.register({
@@ -838,6 +825,24 @@ export function apply(ctx, config) {
       },
     }),
   )
+
+  }
+
+  if (mode !== 'panel') {
+  /** 每个工具调用都绑定到调用者会话的工作区，而不是插件安装时的固定路径。 */
+  async function toolContext(exec) {
+    const root = requireRoot(await sessionRoot(exec))
+    return {
+      root,
+      projectState: (project) => projectState(root, project),
+      listProjects: () => listProjects(root),
+      resolveProject: (project) => resolveProject(root, project),
+      snapshot: (project) => snapshot(root, project),
+      runCli: (args) => runCli(root, exec, args),
+      callCli: (args) => callCli(root, exec, args),
+      callCliJson: (args) => callCliJson(root, exec, args),
+    }
+  }
 
   // ── 强制流程机 ────────────────────────────────────────────────────────
   ctx.effect(() =>
@@ -1499,4 +1504,5 @@ export function apply(ctx, config) {
       },
     }),
   )
+  }
 }
