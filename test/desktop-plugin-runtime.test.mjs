@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply } from '../harness/docwrite-desktop/index.js'
 import { apply as applyPreset } from '../harness/docwrite-desktop/preset.js'
+import { setSessionMode } from '../harness/docwrite-desktop/mode.js'
 
 function writeProjectState(dir, name) {
   mkdirSync(join(dir, '.run'), { recursive: true })
@@ -125,6 +126,9 @@ function makeCtx({
       const disposer = callback()
       return typeof disposer === 'function' ? disposer : () => {}
     },
+    get() {
+      return undefined
+    },
   }
   const roots = sessionCwds ?? (sessionCwd ? [sessionCwd] : [])
   if (roots.length > 0) {
@@ -140,7 +144,7 @@ function makeCtx({
   return { ctx, tools, guards, routes, questions }
 }
 
-test('desktop Host 插件：注册 13 个 docwrite 工具与五条路由', () => {
+test('desktop Host 插件：注册 14 个 docwrite 工具与六条路由', () => {
   const { root, dir } = makeRoot()
   try {
     const { ctx, tools, routes } = makeCtx()
@@ -159,15 +163,17 @@ test('desktop Host 插件：注册 13 个 docwrite 工具与五条路由', () =>
         'docwrite_review_submit',
         'docwrite_review_extend',
         'docwrite_visual_check',
+        'docwrite_force_pause_review',
         'docwrite_verify',
         'docwrite_deliver',
       ],
     )
-    assert.equal(routes.length, 5)
+    assert.equal(routes.length, 6)
     assert.deepEqual(
       routes.map((route) => route.path).sort(),
       [
         '/docwrite/archive',
+        '/docwrite/mode',
         '/docwrite/presets',
         '/docwrite/state',
         '/docwrite/update',
@@ -291,6 +297,64 @@ test('desktop Host 插件：/docwrite/update 比较 GitHub 最新 Release', asyn
   }
 })
 
+test('desktop Host 插件：文档修改模式路由保存 1–5', async () => {
+  const { root } = makeRoot()
+  const modeFile = join(tmpdir(), `docwrite-modes-${process.pid}-${Date.now()}.json`)
+  process.env.DOCWRITE_MODE_FILE = modeFile
+  try {
+    const { ctx, routes } = makeCtx({ sessionCwd: root })
+    ctx.sessions.get = () => ({ header: { cwd: root, agentPreset: 'docwrite' } })
+    apply(ctx, { root, mode: 'panel' })
+    const route = routes.find((entry) => entry.path === '/docwrite/mode')
+    const response = () => ({
+      statusCode: 0,
+      headers: {},
+      body: '',
+      setHeader(name, value) {
+        this.headers[name] = value
+      },
+      end(body) {
+        this.body = body
+      },
+    })
+
+    let res = response()
+    await route.handler({ method: 'GET', url: '/docwrite/mode?session=session-1' }, res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(JSON.parse(res.body).mode, 1)
+
+    res = response()
+    await route.handler(
+      {
+        method: 'POST',
+        url: '/docwrite/mode',
+        body: JSON.stringify({ session: 'session-1', mode: 4 }),
+      },
+      res,
+    )
+    assert.equal(JSON.parse(res.body).mode, 4)
+
+    res = response()
+    await route.handler({ method: 'GET', url: '/docwrite/mode?session=session-1' }, res)
+    assert.equal(JSON.parse(res.body).mode, 4)
+
+    res = response()
+    await route.handler(
+      {
+        method: 'POST',
+        url: '/docwrite/mode',
+        body: JSON.stringify({ session: 'session-1', mode: 9 }),
+      },
+      res,
+    )
+    assert.equal(res.statusCode, 400)
+  } finally {
+    delete process.env.DOCWRITE_MODE_FILE
+    rmSync(root, { recursive: true, force: true })
+    rmSync(modeFile, { force: true })
+  }
+})
+
 test('desktop 插件：面板入口不注册工具，预设入口不注册路由', () => {
   const { root } = makeRoot()
   try {
@@ -298,12 +362,12 @@ test('desktop 插件：面板入口不注册工具，预设入口不注册路由
     apply(panelCtx.ctx, { root, mode: 'panel' })
     assert.equal(panelCtx.tools.length, 0)
     assert.equal(panelCtx.guards.length, 0)
-    assert.equal(panelCtx.routes.length, 5)
+    assert.equal(panelCtx.routes.length, 6)
 
     const presetCtx = makeCtx({ sessionCwd: root })
     delete presetCtx.ctx.webServer
     applyPreset(presetCtx.ctx, { root })
-    assert.equal(presetCtx.tools.length, 13)
+    assert.equal(presetCtx.tools.length, 14)
     assert.equal(presetCtx.guards.length, 1)
     assert.equal(presetCtx.routes.length, 0)
   } finally {
@@ -496,6 +560,37 @@ test('desktop Host 插件：无 root 配置时按会话工作区运行', async (
     assert.match(denied, /强制流程机/)
   } finally {
     rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('desktop 插件：模式 4 自动验收并可用强制暂停审阅', async () => {
+  const { root } = makeRoot()
+  const modeFile = join(tmpdir(), `docwrite-modes-${process.pid}-${Date.now()}-2.json`)
+  process.env.DOCWRITE_MODE_FILE = modeFile
+  try {
+    const { ctx, tools, questions } = makeCtx({ sessionCwd: root })
+    applyPreset(ctx, { root })
+    const visual = tools.find((tool) => tool.name === 'docwrite_visual_check')
+    const force = tools.find((tool) => tool.name === 'docwrite_force_pause_review')
+    const exec = { agent: { id: 'mode-session' }, signal: new AbortController().signal, callId: 'call-1' }
+    const tooLow = await force.execute({ project: '测试', reason: 'test' }, exec)
+    assert.equal(tooLow.ok, false)
+    assert.equal(tooLow.reason, 'mode-too-low')
+    setSessionMode('mode-session', 4)
+
+    const result = await visual.execute({ project: '测试' }, exec)
+    assert.equal(result.auto, true)
+    assert.equal(result.mode, 4)
+    assert.equal(questions.length, 0)
+
+    const paused = await force.execute({ project: '测试', reason: '需要用户确认降重结果' }, exec)
+    assert.equal(paused.ok, true)
+    assert.equal(paused.mode, 4)
+    assert.equal(questions.length, 1)
+  } finally {
+    delete process.env.DOCWRITE_MODE_FILE
+    rmSync(root, { recursive: true, force: true })
+    rmSync(modeFile, { force: true })
   }
 })
 

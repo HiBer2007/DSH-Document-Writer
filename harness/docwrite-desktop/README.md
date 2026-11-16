@@ -8,10 +8,10 @@
 
 1. **预设**：注册 `docwrite`（显示名「文档工坊」），组合来自
    `presets/docwrite/agent.cordis.yml`，与 TUI 共用同一份 12 阶段契约。
-2. **封装工具**（13 个）：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、
+2. **封装工具**（14 个）：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、
    `docwrite_next`、`docwrite_stage_enter`、`docwrite_stage_done`、`docwrite_approve`、
    `docwrite_review_open`、`docwrite_review_submit`、`docwrite_review_extend`、
-   `docwrite_visual_check`、`docwrite_verify`、`docwrite_deliver`。
+   `docwrite_visual_check`、`docwrite_force_pause_review`、`docwrite_verify`、`docwrite_deliver`。
    工具和门禁作为「文档工坊」预设的子插件（`preset.js`）注册，只在该预设的 agent scope 内可见；
    标准/极简等其他模式不会看到，也不会把工具描述带进提示词。全局 `docwrite-harness` 只保留面板路由。
    工具不依赖安装机上的固定路径：CLI 代码在插件包的 `cli/` 里，`cwd` 是当前会话工作区；
@@ -23,6 +23,11 @@
    `GET /docwrite/state`，汇总所有活会话工作区里的项目，展示每个项目的 12 阶段进度、
    待确认点、blocked 原因，并标注所属工作区。每张卡片可以手动**归档/恢复**：
    归档只写 `.run/panel.json`，不删数据、不改流程状态；右上角可切换显示已归档项目。
+5. **文档修改模式**（仅文档工坊会话）：输入框工具行「工作区内修改」右侧的「文档修改」
+   按钮，5 级：完全人工 → 自动轮次 → 自动降重审阅 → 仅通知模型要求的审阅 → 全自动。
+   3 包含 2；4/5 选择时弹高风险确认；5 下 question 仍中断。模式按会话保存在
+   `$DSH_PROFILE_DIR/docwrite-modes.json`，Host 路由为 `GET/POST /docwrite/mode`。
+   `docwrite_force_pause_review` 只属于文档工坊预设，模式 4/5 才允许执行。
 
 ## 安装
 

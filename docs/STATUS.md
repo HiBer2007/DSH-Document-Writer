@@ -27,7 +27,7 @@
   - `docwrite mode install --profile dsh-tui` 写入 `preset-docwrite` 行；旧动态 `.mjs` 自动清理
   - `dsh --profile dsh-tui --dump-config` 组合通过；预设包与 include 包从 dsh 安装目录可解析
 - **追加：DSH Desktop 集成** ✅
-  - bundle `harness/docwrite-desktop`：声明式预设 + 13 个封装工具 + S8 硬门禁 + `/docwrite/state`、`/docwrite/presets` 两条只读路由 + 左侧栏「文档工坊」面板
+  - bundle `harness/docwrite-desktop`：声明式预设 + 14 个封装工具 + S8 硬门禁 + 面板/更新/模式路由 + 左侧栏「文档工坊」面板
   - 工具与门禁按**当前会话工作区**运行（`ctx.workingDirectory.ensure`）；CLI 打包在插件的 `cli/`，不再读安装时的固定路径
   - GUI 面板不再依赖 `useWorkspaces` 的当前项：无 `root` 时汇总所有活会话里已初始化项目的工作区，卡片标注 workspace
   - 已安装到 `desktop` profile；`/docwrite/presets` 返回 `docwrite` 且 `resolved: true`、`broken: null`
@@ -37,6 +37,12 @@
 - **修复：docwrite 工具不再全局注入** ✅
   - `index.js` 只保留面板路由（`mode: panel`）；工具/门禁移到 `preset.js`（`mode: tools`），作为「文档工坊」预设的子插件
   - 标准/极简等其他模式不再出现 `docwrite_*` 工具，也不会把工具描述带进提示词；面板路由仍全局可用
+- **追加：文档修改模式（仅 Desktop / 仅文档工坊）** ✅
+  - 输入框工具行「工作区内修改」右侧注册「文档修改」按钮；`conversation.input.left` 槽，按 `agentPreset === 'docwrite'` 显示
+  - 5 级：完全人工 → 自动轮次 → 自动降重审阅 → 仅通知模型要求的审阅 → 全自动；3 含 2，4/5 弹高风险确认
+  - 模式 2+ 自动许可 `docwrite_review_extend`；模式 3 自动通过 S7 验收；模式 4/5 自动通过常规验收；模式 5 自动通过 U 确认
+  - `docwrite_force_pause_review` 只注册在文档工坊预设，模式 4/5 才允许执行；question 工具不受影响
+  - 模式按会话保存在 `$DSH_PROFILE_DIR/docwrite-modes.json`；`GET/POST /docwrite/mode`；非 docwrite 会话返回 403
 - **追加：检查更新** ✅
   - 面板右上角「检查更新」；CLI `docwrite update [--json]`；打开面板后每 6 小时自动检查
   - 有新版时右下角弹窗显示 Release 说明，提供「立即更新」和「跳过此版本」
@@ -94,10 +100,10 @@
 ## 测试
 
 ```
-npm test  →  137 tests, 0 fail
+npm test  →  139 tests, 0 fail
 ```
 
-覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
+覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、文档修改模式与强制暂停审阅、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
 
 ## 当前可用命令
 

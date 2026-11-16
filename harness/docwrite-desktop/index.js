@@ -10,9 +10,10 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, wri
 import { execFile } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { DOC_MODES, getSessionMode, setSessionMode } from './mode.js'
 
 export const name = 'docwrite-harness'
-export const inject = ['webServer', 'sessions']
+export const inject = ['webServer', 'sessions', 'sessionQuery']
 
 export const STAGES = [
   { id: 'S0', name: '受理', gate: 'soft' },
@@ -488,6 +489,34 @@ export function apply(ctx, config) {
   }
 
   /** 工具执行前解析工作区：优先会话目录，其次显式配置。 */
+  async function sessionPreset(sessionId) {
+    if (typeof sessionId !== 'string' || sessionId.length === 0) return null
+    try {
+      const query = ctx.get('sessionQuery')
+      if (query && typeof query.observeSession === 'function') {
+        const observation = await query.observeSession(sessionId)
+        const preset =
+          observation?.projections?.values?.agentPreset ??
+          observation?.header?.agentPreset ??
+          null
+        if (typeof preset === 'string' && preset.length > 0) return preset
+      }
+    } catch {
+      // 回退到 sessions。
+    }
+    try {
+      const session = ctx.sessions?.get?.(sessionId)
+      return (
+        session?.agentPreset ??
+        session?.header?.agentPreset ??
+        session?.projections?.values?.agentPreset ??
+        null
+      )
+    } catch {
+      return null
+    }
+  }
+
   async function sessionRoot(exec) {
     if (exec?.agent && ctx.workingDirectory && typeof ctx.workingDirectory.ensure === 'function') {
       try {
@@ -651,6 +680,69 @@ export function apply(ctx, config) {
           res.statusCode = 500
           res.setHeader('content-type', 'application/json; charset=utf-8')
           res.end(JSON.stringify({ ok: false, error: err?.message ?? String(err) }))
+        }
+      },
+    }),
+  )
+
+  // ── 文档修改模式（仅文档工坊会话） ───────────────────────────────────
+  ctx.effect(() =>
+    ctx.webServer.register({
+      kind: 'exact',
+      path: '/docwrite/mode',
+      handler: async (req, res) => {
+        const send = (status, value) => {
+          res.statusCode = status
+          res.setHeader('content-type', 'application/json; charset=utf-8')
+          res.setHeader('cache-control', 'no-store')
+          res.end(JSON.stringify(value))
+        }
+        try {
+          const url = new URL(req.url ?? '/', 'http://localhost')
+          let payload = {}
+          if (req.method === 'POST') {
+            const raw = await readBody(req)
+            payload = raw.trim() ? JSON.parse(raw) : {}
+          }
+          const session = String(payload.session ?? url.searchParams.get('session') ?? '')
+          if (!session) {
+            send(400, { ok: false, error: '缺少 session' })
+            return
+          }
+          const preset = await sessionPreset(session)
+          if (preset !== 'docwrite') {
+            send(403, { ok: false, error: '文档修改模式仅在文档工坊会话可用', preset })
+            return
+          }
+          if (req.method === 'GET') {
+            send(200, {
+              ok: true,
+              session,
+              preset,
+              mode: getSessionMode(session),
+              modes: DOC_MODES,
+            })
+            return
+          }
+          if (req.method !== 'POST') {
+            send(405, { ok: false, error: '只支持 GET/POST' })
+            return
+          }
+          const mode = Number(payload.mode)
+          if (!Number.isInteger(mode) || mode < 1 || mode > 5) {
+            send(400, { ok: false, error: '文档修改模式必须是 1–5' })
+            return
+          }
+          const saved = setSessionMode(session, mode)
+          send(200, {
+            ok: true,
+            session,
+            preset,
+            mode: saved,
+            modes: DOC_MODES,
+          })
+        } catch (err) {
+          send(500, { ok: false, error: err?.message ?? String(err) })
         }
       },
     }),
@@ -1147,15 +1239,15 @@ export function apply(ctx, config) {
     ctx.tools.register({
       name: 'docwrite_approve',
       description:
-        '记录用户确认点（U0–U7）。quote 必须是用户原话，不许模型代写或自行 approve；CLI 会拒绝 --by 非 user 或空 quote。',
+        '记录用户确认点（U0–U7）。模式 1–4 下 quote 必须是用户原话，不许模型代写；模式 5（全自动）下可省略 quote，由模式记录自动许可。CLI 仍拒绝空 quote。',
       parameters: {
         type: 'object',
         properties: {
           gate: { type: 'string', description: '确认点，U0–U7' },
-          quote: { type: 'string', description: '用户原话（逐字引用）' },
+          quote: { type: 'string', description: '用户原话；模式 1–4 必填，模式 5 可省略' },
           project: projectParam,
         },
-        required: ['gate', 'quote'],
+        required: ['gate'],
         additionalProperties: false,
       },
       output: textOutput((value) => JSON.stringify(value, null, 2)),
@@ -1163,11 +1255,14 @@ export function apply(ctx, config) {
         const { resolveProject, callCli } = await toolContext(exec)
         const gate = String(args?.gate ?? '')
         if (!/^U[0-7]$/.test(gate)) throw new Error(`gate 必须是 U0–U7，收到：${gate}`)
-        const quote = String(args?.quote ?? '').trim()
+        const mode = getSessionMode(exec.agent?.id)
+        const quote =
+          String(args?.quote ?? '').trim() ||
+          (mode >= 5 ? '文档修改模式 5：全自动许可' : '')
         if (!quote) throw new Error('quote 必须是用户原话，不能为空')
         const name = resolveProject(args?.project)
         const result = await callCli(['approve', gate, '--by', 'user', '--quote', quote, '--project', name])
-        return { ok: true, gate, project: name, output: result.stdout.trim() }
+        return { ok: true, gate, project: name, mode, auto: mode >= 5, output: result.stdout.trim() }
       },
     }),
   )
@@ -1235,7 +1330,7 @@ export function apply(ctx, config) {
     ctx.tools.register({
       name: 'docwrite_review_extend',
       description:
-        '评审轮次用满后向用户申请追加 1 轮。必须由用户在验收卡上点“允许”；用户原话会记入 review.extend 事件。模型不能自行追加，也不能在还有未提交评审时追加。',
+        '评审轮次用满后追加 1 轮。模式 2+ 按用户选择自动许可；模式 1 必须由用户在验收卡上点“允许”。模型不能绕过硬上限，也不能在还有未提交评审时追加。',
       parameters: {
         type: 'object',
         properties: {
@@ -1305,45 +1400,50 @@ export function apply(ctx, config) {
           }
         }
 
-        const answer = await ctx.userQuestions.ask({
-          agent: exec.agent,
-          signal: exec.signal,
-          wait: { callId: exec.callId },
-          questions: [
-            {
-              id: 'docwrite-review-extend',
-              header: `文档工坊 · ${stage} 评审轮次`,
-              question: `${stage} 已开 ${round} 轮评审（基础上限 ${base}，已追加 ${extra} 轮）。是否允许再追加 1 轮，让评审员复核这一轮的修改？`,
-              detail: `追加理由：${reason}\n\n追加只影响 ${stage}；最多再追加 ${maxExtra - extra} 轮。不允许时按现有评审结论处理或回退。`,
-              options: [
-                {
-                  label: '允许，加 1 轮',
-                  description: `记录 review.extend；随后可开第 ${round + 1} 轮。`,
-                },
-                {
-                  label: '不增加，按现有评审结论处理',
-                  description: '不追加预算；按当前 verdict 决定回退或接受。',
-                },
-              ],
-            },
-          ],
-        })
+        const mode = getSessionMode(exec.agent?.id)
+        let quote
+        if (mode >= 2) {
+          quote = `文档修改模式 ${mode}：自动许可轮次增加`
+        } else {
+          const answer = await ctx.userQuestions.ask({
+            agent: exec.agent,
+            signal: exec.signal,
+            wait: { callId: exec.callId },
+            questions: [
+              {
+                id: 'docwrite-review-extend',
+                header: `文档工坊 · ${stage} 评审轮次`,
+                question: `${stage} 已开 ${round} 轮评审（基础上限 ${base}，已追加 ${extra} 轮）。是否允许再追加 1 轮，让评审员复核这一轮的修改？`,
+                detail: `追加理由：${reason}\n\n追加只影响 ${stage}；最多再追加 ${maxExtra - extra} 轮。不允许时按现有评审结论处理或回退。`,
+                options: [
+                  {
+                    label: '允许，加 1 轮',
+                    description: `记录 review.extend；随后可开第 ${round + 1} 轮。`,
+                  },
+                  {
+                    label: '不增加，按现有评审结论处理',
+                    description: '不追加预算；按当前 verdict 决定回退或接受。',
+                  },
+                ],
+              },
+            ],
+          })
 
-        const item = answer?.answers?.find((entry) => entry.id === 'docwrite-review-extend')
-        const selected = item?.selected ?? []
-        const custom = (item?.custom ?? '').trim()
-        if (!selected.some((label) => label.startsWith('允许'))) {
-          return {
-            ok: false,
-            extended: false,
-            stage,
-            project: name,
-            reason: 'user-declined',
-            quote: custom || selected.join('；') || '用户未允许追加',
+          const item = answer?.answers?.find((entry) => entry.id === 'docwrite-review-extend')
+          const selected = item?.selected ?? []
+          const custom = (item?.custom ?? '').trim()
+          if (!selected.some((label) => label.startsWith('允许'))) {
+            return {
+              ok: false,
+              extended: false,
+              stage,
+              project: name,
+              reason: 'user-declined',
+              quote: custom || selected.join('；') || '用户未允许追加',
+            }
           }
+          quote = custom || '允许，加 1 轮'
         }
-
-        const quote = custom || '允许，加 1 轮'
         const result = await callCli([
           'review',
           'extend',
@@ -1368,6 +1468,8 @@ export function apply(ctx, config) {
           round: round + 1,
           limit: limit + 1,
           quote,
+          mode,
+          auto: mode >= 2,
           output: result.stdout.trim(),
         }
       },
@@ -1378,7 +1480,7 @@ export function apply(ctx, config) {
     ctx.tools.register({
       name: 'docwrite_visual_check',
       description:
-        '把当前阶段的成果以可视化摘要（阶段进度、产物清单、关键指标、正文预览）展示给用户，并询问“是否合格、能否进入下一步”。不合格时收集需要修改的地方。每次 stage done 前先调用；它只记录人工验收意见，真正的阶段完成仍由 CLI 的 stage done 判定。',
+        '把当前阶段的成果以可视化摘要（阶段进度、产物清单、关键指标、正文预览）展示给用户，并询问“是否合格、能否进入下一步”。不合格时收集需要修改的地方。模式 3 自动通过 S7 降重验收，模式 4/5 自动通过所有阶段；仍建议在关键阶段使用强制暂停审阅。',
       parameters: {
         type: 'object',
         properties: {
@@ -1400,6 +1502,26 @@ export function apply(ctx, config) {
         if (!exec.agent) throw new Error('docwrite_visual_check 需要 agent 会话')
 
         const detail = buildGateDetail(state, stage, join(root, 'projects', name))
+        const mode = getSessionMode(exec.agent?.id)
+        if (mode >= 4 || (mode >= 3 && stage === 'S7')) {
+          return {
+            ok: true,
+            project: name,
+            stage,
+            verdict: 'pass',
+            feedback: '',
+            auto: true,
+            mode,
+            notified: mode === 4,
+            message:
+              mode >= 4
+                ? `文档修改模式 ${mode}：常规验收自动通过；只有强制暂停审阅会打断。`
+                : `文档修改模式 ${mode}：S7 降重审阅自动通过。`,
+            artifacts: ARTIFACTS[stage] ?? [],
+            summary: detail,
+            next: `docwrite_stage_done ${stage}`,
+          }
+        }
         const answer = await ctx.userQuestions.ask({
           agent: exec.agent,
           signal: exec.signal,
@@ -1453,6 +1575,81 @@ export function apply(ctx, config) {
                   ? '按反馈修改后重新调用 docwrite_visual_check'
                   : '用户要求修改但未填写具体说明；先问清楚要改哪里，再修改'
                 : '稍后再验收',
+        }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.tools.register({
+      name: 'docwrite_force_pause_review',
+      description:
+        '文档修改模式 4/5 专用：强制暂停自动流程，把当前阶段成果交给用户审阅。低于模式 4 调用会被拒绝；模式 5 下调用它也会正常中断。',
+      parameters: {
+        type: 'object',
+        properties: {
+          project: projectParam,
+          stage: { type: 'string', description: '要审阅的阶段；省略时用当前阶段' },
+          reason: { type: 'string', description: '为什么现在必须暂停审阅' },
+        },
+        additionalProperties: false,
+      },
+      output: textOutput((value) => JSON.stringify(value, null, 2)),
+      async execute(args, exec) {
+        const { root, projectState, resolveProject } = await toolContext(exec)
+        const mode = getSessionMode(exec.agent?.id)
+        if (mode < 4) {
+          return {
+            ok: false,
+            reason: 'mode-too-low',
+            mode,
+            message: '强制暂停审阅仅在文档修改模式 4/5 可用；当前模式不会自动跳过验收。',
+          }
+        }
+        if (!exec.agent) throw new Error('docwrite_force_pause_review 需要 agent 会话')
+        const name = resolveProject(args?.project)
+        const found = projectState(name)
+        if (!found) throw new Error(`项目不存在或未初始化：${name}`)
+        const state = found.state
+        const stage =
+          typeof args?.stage === 'string' && args.stage.length > 0 ? args.stage : state.current
+        if (!STAGE_MAP[stage]) throw new Error(`未知阶段：${stage}`)
+        const reason = String(args?.reason ?? '').trim()
+        const detail = buildGateDetail(state, stage, join(root, 'projects', name))
+        const answer = await ctx.userQuestions.ask({
+          agent: exec.agent,
+          signal: exec.signal,
+          wait: { callId: exec.callId },
+          questions: [
+            {
+              id: 'docwrite-force-pause-review',
+              header: `文档工坊 · ${stage} 强制暂停审阅`,
+              question: reason || '模型请求暂停，请审阅当前阶段成果；是否继续？',
+              detail,
+              options: [
+                { label: '已审阅，继续', description: '记录这次暂停审阅，模型可以继续。' },
+                { label: '需要修改', description: '请在补充说明里写清楚要改什么。' },
+              ],
+            },
+          ],
+        })
+        const item = answer.answers?.find((entry) => entry.id === 'docwrite-force-pause-review')
+        const selected = item?.selected ?? []
+        const feedback = (item?.custom ?? '').trim()
+        const verdict = selected.some((label) => label.includes('修改'))
+          ? 'revise'
+          : selected.length > 0
+            ? 'continue'
+            : 'pending'
+        return {
+          ok: true,
+          project: name,
+          stage,
+          mode,
+          verdict,
+          feedback,
+          artifacts: ARTIFACTS[stage] ?? [],
+          summary: detail,
         }
       },
     }),

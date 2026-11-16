@@ -707,6 +707,297 @@ window.__ModuleLoader__.load({
       }
     }
 
+    const DOC_MODES = [
+      {
+        level: 1,
+        zh: '完全人工审阅',
+        en: 'Fully manual',
+        shortZh: '人工',
+        shortEn: 'manual',
+        zhDesc: '所有轮次追加、阶段验收和确认点都由你决定。',
+        enDesc: 'Every extension, acceptance and approval gate asks you.',
+      },
+      {
+        level: 2,
+        zh: '自动许可轮次增加',
+        en: 'Auto round extension',
+        shortZh: '轮次+',
+        shortEn: 'rounds',
+        zhDesc: '轮次用满后自动追加 1 轮；其他验收仍问你。',
+        enDesc: 'Auto-extend a capped review by one round; other gates still ask.',
+      },
+      {
+        level: 3,
+        zh: '自动许可降重审阅',
+        en: 'Auto reduce review',
+        shortZh: '降重',
+        shortEn: 'reduce',
+        zhDesc: '包含 2；S7 降重阶段的验收自动通过。',
+        enDesc: 'Includes 2; S7 reduce-stage acceptance is auto-passed.',
+      },
+      {
+        level: 4,
+        zh: '仅通知模型要求的审阅',
+        en: 'Model-requested reviews only',
+        shortZh: '通知',
+        shortEn: 'notify',
+        zhDesc: '包含 3；常规验收自动通过，只有模型调用「强制暂停审阅」时才停下来问你。',
+        enDesc:
+          'Includes 3; routine acceptance is auto-passed. Only the model’s force-pause review stops for you.',
+        danger: true,
+        zhWarning:
+          '模式 4 会跳过常规验收。只有模型主动调用「强制暂停审阅」时才会暂停；如果模型不调用，你可能看不到中间审阅。',
+        enWarning:
+          'Mode 4 skips routine acceptance. It pauses only when the model calls the force-pause review tool; otherwise you may not see intermediate reviews.',
+      },
+      {
+        level: 5,
+        zh: '全自动许可（auto mode）',
+        en: 'Fully automatic (auto mode)',
+        shortZh: '全自动',
+        shortEn: 'auto',
+        zhDesc: '所有文档确认点、轮次追加和验收都自动通过；question 工具仍会正常中断。',
+        enDesc:
+          'All document approvals, extensions and acceptance auto-pass. The question tool still interrupts.',
+        danger: true,
+        zhWarning:
+          '模式 5 会自动通过所有文档确认点和验收，模型可以连续执行到交付。只有 question / 强制暂停审阅等用户交互仍会正常中断；请只在完全信任当前任务时使用。',
+        enWarning:
+          'Mode 5 auto-passes every document approval and acceptance, so the model can run through delivery. Only user interactions such as question / force-pause review still interrupt. Use only when you fully trust this task.',
+      },
+    ]
+
+    function modeText(mode, lang) {
+      const found = DOC_MODES.find((entry) => entry.level === mode) ?? DOC_MODES[0]
+      return lang === 'en'
+        ? { label: found.en, short: found.shortEn, description: found.enDesc, warning: found.enWarning }
+        : { label: found.zh, short: found.shortZh, description: found.zhDesc, warning: found.zhWarning }
+    }
+
+    function confirmModeWarning(level, lang, onConfirm) {
+      if (typeof document === 'undefined') return
+      const info = modeText(level, lang)
+      const overlay = document.createElement('div')
+      overlay.setAttribute('data-docwrite-mode-warning', String(level))
+      overlay.style.cssText =
+        'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;' +
+        'padding:24px;background:rgba(0,0,0,.55);'
+      const card = document.createElement('div')
+      card.style.cssText =
+        'width:min(480px,100%);box-sizing:border-box;border-radius:14px;padding:20px 22px;' +
+        'background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary,#111);' +
+        'border:1px solid rgba(220,38,38,.55);box-shadow:0 24px 80px rgba(0,0,0,.45);' +
+        'font:13px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;'
+      const title = document.createElement('div')
+      title.textContent = lang === 'en' ? `High risk · ${info.label}` : `高风险 · ${info.label}`
+      title.style.cssText = 'font-size:16px;font-weight:700;color:#dc2626;'
+      const body = document.createElement('div')
+      body.textContent = info.warning ?? ''
+      body.style.cssText = 'margin-top:10px;color:var(--dsw-alias-label-secondary,#555);white-space:pre-wrap;'
+      const hint = document.createElement('div')
+      hint.textContent =
+        lang === 'en'
+          ? 'The mode is recorded for this session. You can switch back at any time.'
+          : '该模式只对当前会话生效，随时可以切回低等级。'
+      hint.style.cssText = 'margin-top:12px;color:var(--dsw-alias-label-secondary,#777);font-size:12px;'
+      const actions = document.createElement('div')
+      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;margin-top:18px;'
+      const cancel = document.createElement('button')
+      cancel.type = 'button'
+      cancel.textContent = lang === 'en' ? 'Cancel' : '取消'
+      cancel.style.cssText =
+        'border:1px solid var(--dsw-alias-border-l2,#ccc);border-radius:8px;padding:8px 14px;' +
+        'background:transparent;color:inherit;cursor:pointer;font-size:13px;'
+      const confirm = document.createElement('button')
+      confirm.type = 'button'
+      confirm.textContent = lang === 'en' ? 'Enable anyway' : '仍要启用'
+      confirm.style.cssText =
+        'border:1px solid #dc2626;border-radius:8px;padding:8px 14px;background:#dc2626;' +
+        'color:#fff;font-weight:600;cursor:pointer;font-size:13px;'
+      const close = () => overlay.remove()
+      cancel.onclick = close
+      confirm.onclick = () => {
+        close()
+        onConfirm()
+      }
+      actions.append(cancel, confirm)
+      card.append(title, body, hint, actions)
+      overlay.appendChild(card)
+      document.body.appendChild(overlay)
+    }
+
+    function makeDocMode(ctx) {
+      return function DocMode(props) {
+        const { useProjection, sessionId } = props
+        const lang = useLang(ctx)
+        const preset = useProjection('agentPreset')
+        const [mode, setMode] = React.useState(1)
+        const [open, setOpen] = React.useState(false)
+        const [error, setError] = React.useState(null)
+        const rootRef = React.useRef(null)
+
+        React.useEffect(() => {
+          if (!sessionId || preset !== 'docwrite') return undefined
+          let alive = true
+          fetch(`/docwrite/mode?session=${encodeURIComponent(sessionId)}`, {
+            cache: 'no-store',
+            headers: { accept: 'application/json' },
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              if (alive && data?.ok) setMode(Number(data.mode) || 1)
+            })
+            .catch(() => {})
+          return () => {
+            alive = false
+          }
+        }, [sessionId, preset])
+
+        React.useEffect(() => {
+          if (!open) return undefined
+          const onDown = (event) => {
+            if (!rootRef.current?.contains(event.target)) setOpen(false)
+          }
+          document.addEventListener('pointerdown', onDown)
+          return () => document.removeEventListener('pointerdown', onDown)
+        }, [open])
+
+        if (preset !== 'docwrite' || !sessionId) return null
+
+        const current = modeText(mode, lang)
+        const applyMode = async (next) => {
+          setError(null)
+          try {
+            const response = await fetch('/docwrite/mode', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json', accept: 'application/json' },
+              body: JSON.stringify({ session: sessionId, mode: next }),
+            })
+            const data = await response.json()
+            if (!data?.ok) throw new Error(data?.error ?? `HTTP ${response.status}`)
+            setMode(Number(data.mode) || next)
+            setOpen(false)
+          } catch (err) {
+            setError(err?.message ?? String(err))
+          }
+        }
+        const choose = (next) => {
+          const info = modeText(next, lang)
+          if (next >= 4) {
+            setOpen(false)
+            confirmModeWarning(next, lang, () => applyMode(next))
+            return
+          }
+          applyMode(next)
+        }
+
+        const danger = mode >= 4
+        const buttonStyle = {
+          position: 'relative',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          height: 28,
+          padding: '0 10px',
+          borderRadius: 999,
+          border: `1px solid ${danger ? 'rgba(220,38,38,.55)' : 'var(--dsw-alias-border-l1, #ccc)'}`,
+          background: 'transparent',
+          color: danger ? '#dc2626' : 'inherit',
+          fontSize: 12,
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+        }
+        return h(
+          'div',
+          { ref: rootRef, style: { position: 'relative', display: 'inline-flex' } },
+          h(
+            'button',
+            {
+              type: 'button',
+              title: `${lang === 'en' ? 'Document modification mode' : '文档修改模式'}：${current.label}`,
+              style: buttonStyle,
+              onClick: () => setOpen((value) => !value),
+            },
+            h('span', null, lang === 'en' ? 'Doc mode' : '文档修改'),
+            h('strong', { style: { fontWeight: 650 } }, current.short),
+            danger ? h('span', { 'aria-hidden': true }, '⚠') : null,
+          ),
+          open
+            ? h(
+                'div',
+                {
+                  style: {
+                    position: 'absolute',
+                    left: 0,
+                    bottom: 'calc(100% + 8px)',
+                    zIndex: 2147483000,
+                    width: 340,
+                    maxWidth: 'calc(100vw - 32px)',
+                    maxHeight: '60vh',
+                    overflow: 'auto',
+                    padding: 8,
+                    borderRadius: 12,
+                    border: '1px solid var(--dsw-alias-border-l1, #ddd)',
+                    background: 'var(--dsw-alias-bg-layer-1, #fff)',
+                    color: 'var(--dsw-alias-label-primary, #111)',
+                    boxShadow: '0 18px 60px rgba(0,0,0,.35)',
+                  },
+                },
+                ...DOC_MODES.map((entry) => {
+                  const text = modeText(entry.level, lang)
+                  const active = entry.level === mode
+                  return h(
+                    'button',
+                    {
+                      key: entry.level,
+                      type: 'button',
+                      onClick: () => choose(entry.level),
+                      style: {
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '8px 10px',
+                        borderRadius: 8,
+                        border: active
+                          ? '1px solid var(--dsw-alias-border-l2, #999)'
+                          : '1px solid transparent',
+                        background: active ? 'rgba(127,127,127,.12)' : 'transparent',
+                        color: entry.danger ? '#dc2626' : 'inherit',
+                        cursor: 'pointer',
+                      },
+                    },
+                    h(
+                      'div',
+                      { style: { fontSize: 13, fontWeight: 600 } },
+                      `${entry.level}. ${text.label}${entry.danger ? ' ⚠' : ''}`,
+                    ),
+                    h(
+                      'div',
+                      {
+                        style: {
+                          marginTop: 2,
+                          fontSize: 11,
+                          lineHeight: 1.5,
+                          color: 'var(--dsw-alias-label-secondary, #666)',
+                        },
+                      },
+                      text.description,
+                    ),
+                  )
+                }),
+                error
+                  ? h(
+                      'div',
+                      { style: { padding: '6px 10px', fontSize: 11, color: '#dc2626' } },
+                      error,
+                    )
+                  : null,
+              )
+            : null,
+        )
+      }
+    }
+
     function makePanel(ctx) {
       return function Panel(props) {
         const lang = useLang(ctx)
@@ -934,6 +1225,12 @@ window.__ModuleLoader__.load({
         )
         ctx.slots.inject('main', () =>
           ctx.slots.register({ name: 'main', key: 'docwrite' }, makePanel(ctx)),
+        )
+        ctx.slots.inject('conversation.input.left', () =>
+          ctx.slots.register(
+            { name: 'conversation.input.left', id: 'docwrite-mode', order: 20, label: '文档修改模式' },
+            makeDocMode(ctx),
+          ),
         )
         if (typeof document !== 'undefined') {
           if (document.readyState === 'loading') {
