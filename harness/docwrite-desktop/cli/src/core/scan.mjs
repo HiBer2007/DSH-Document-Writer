@@ -134,7 +134,7 @@ export function scanText(text, { file = null, rules = loadRules() } = {}) {
   const chars = clean.length || 1
   const weights = rules.weights
 
-  const byGroup = { template: 0, aiFlavor: 0, machineFlavor: 0, passive: 0, vague: 0, yuBagu: 0 }
+  const byGroup = { template: 0, aiFlavor: 0, aiColloquial: 0, machineFlavor: 0, passive: 0, vague: 0, yuBagu: 0 }
   const paragraphHits = paragraphs.map((paragraph) => {
     const hits = collectHits(paragraph, rules)
     for (const hit of hits) byGroup[hit.group] = (byGroup[hit.group] ?? 0) + 1
@@ -183,7 +183,12 @@ export function scanText(text, { file = null, rules = loadRules() } = {}) {
     aiRateSignals.push(`模糊归因 ${byGroup.vague} 处`)
   }
 
-  const aiFlavor = clamp(byGroup.aiFlavor * 0.12 + byGroup.template * 0.05 + byGroup.yuBagu * 0.1)
+  const aiFlavor = clamp(
+    byGroup.aiFlavor * 0.12 +
+      byGroup.aiColloquial * 0.15 +
+      byGroup.template * 0.05 +
+      byGroup.yuBagu * 0.1,
+  )
   const machineFlavor = clamp(byGroup.machineFlavor * 0.1 + byGroup.passive * 0.05)
 
   const hotspots = paragraphHits
@@ -214,7 +219,11 @@ export function scanText(text, { file = null, rules = loadRules() } = {}) {
       },
       aiFlavor: {
         score: aiFlavor,
-        signals: [`AI 味模式 ${byGroup.aiFlavor} 处`, `鱼八股模式 ${byGroup.yuBagu} 处`],
+        signals: [
+          `AI 味模式 ${byGroup.aiFlavor} 处`,
+          `AI 伪口语 ${byGroup.aiColloquial} 处`,
+          `鱼八股模式 ${byGroup.yuBagu} 处`,
+        ],
         note: '代理分：重要性膨胀、空洞结论、三板斧、鱼八股大词等',
       },
       machineFlavor: {
@@ -248,6 +257,12 @@ export function scanText(text, { file = null, rules = loadRules() } = {}) {
         fullwidthRatio: Number(((fullwidth / chars) * 100).toFixed(2)),
       },
       vagueAttribution: { count: byGroup.vague },
+      aiColloquial: {
+        count: byGroup.aiColloquial,
+        quotes: paragraphHits.flatMap(({ hits }) =>
+          hits.filter((h) => h.group === 'aiColloquial').map((h) => h.quote),
+        ).slice(0, 10),
+      },
       yuBagu: {
         count: byGroup.yuBagu,
         quotes: paragraphHits.flatMap(({ hits }) =>
@@ -283,6 +298,7 @@ export function formatScanReport(result) {
   lines.push(`嵌套编号：${d.nestedNumbers.count} 处 ｜ 冒号并列：${d.colonLists.count} 处`)
   lines.push(`每句逗号：${d.punctuation.commasPerSentence} 个 ｜ 模糊归因：${d.vagueAttribution.count} 处`)
   lines.push(`鱼八股模式：${d.yuBagu.count} 处${d.yuBagu.quotes.length ? `（${d.yuBagu.quotes.join('、')}）` : ''}`)
+  lines.push(`AI 伪口语/伪对话：${d.aiColloquial.count} 处${d.aiColloquial.quotes.length ? `（${d.aiColloquial.quotes.join('、')}）` : ''}`)
   lines.push('')
   if (result.hotspots.length) {
     lines.push('段落热点（按风险排序，最多 20 条）：')

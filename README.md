@@ -65,8 +65,8 @@ node bin/docwrite.mjs help
 | 引用 | 用途 |
 | --- | --- |
 | `main` | 开发分支，日常提交先到这里 |
-| `release` | 稳定发布快照；当前指向 `v1.3.0` |
-| `v1.3.0` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
+| `release` | 稳定发布快照；当前指向 `v1.3.1` |
+| `v1.3.1` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
 
 - **用稳定版**：克隆 `release` 或检出标签：
 
@@ -75,7 +75,7 @@ node bin/docwrite.mjs help
   # 或
   git clone git@github.com:HiBer2007/DSH-Document-Writer.git
   cd DSH-Document-Writer
-  git checkout v1.3.0
+  git checkout v1.3.1
   ```
 
 - **跟进最新功能**：用 `main`。
@@ -86,8 +86,8 @@ node bin/docwrite.mjs help
   npm test
   git switch release
   git merge --ff-only main
-  git tag -a v1.3.1 -m "文档工坊 v1.3.1"
-  git push origin release v1.3.1
+  git tag -a v1.3.2 -m "文档工坊 v1.3.2"
+  git push origin release v1.3.2
   git switch main
   ```
 
@@ -96,7 +96,7 @@ node bin/docwrite.mjs help
 
 - `release` 只放可发布状态，不直接加功能提交；功能、重构、文档修改先走 `main`。
 - 发布前把 `package.json` 的 `version` 与标签改成同一个版本号；当前是
-  `1.3.0` / `v1.3.0`。
+  `1.3.1` / `v1.3.1`。
 - **检查更新**：面板右上角「检查更新」按钮，或 CLI：
 
   ```powershell
@@ -204,6 +204,11 @@ plugin_manager  action: install_bundle
 - **鱼八股**：结构固化（总—分—总 / 现状—问题—对策 / 三段式）、正确的空话
   （赋能、抓手、闭环、底层逻辑、新篇章、答卷）、排比三连、金句结尾、情绪拔高。
   命中 ≥2 类必须 revise。详见 `rules/machine-flavor.md` §10。
+- **AI 伪口语/伪对话腔**：用“这句话稳”“比之前的都重”“我记下了”“我不拦”
+  “你自己掂量”“你说的对，但是”这类短对白金句冒充人味。它们没有人物、场景、
+  动作和信息，是模型对“人味”的二阶模仿；完整屏蔽词表见 `rules/scan-rules.json`
+  的 `aiColloquial` 组。命中一处即 issue，同段 ≥2 句或全文反复出现必须 revise。
+  正常口语引用、真实对话、方言词不在屏蔽范围。详见 `rules/machine-flavor.md` §12。
 - 降重执行者必须是模型本人；评审必须派新上下文子代理，主代理不得自评。
 - **不设统一修改率门槛**：`modificationRateMin` / `minDiffCheckpoints` 默认 `0`；
   只有项目显式配置时才作为可选过程保底。初稿已经达标就保留原文或 `waive S7`，

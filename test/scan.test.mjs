@@ -77,6 +77,25 @@ test('扫描结果标注“线索不是结论”', () => {
   assert.match(result.note, /线索/)
 })
 
+test('AI 伪口语/伪对话腔进入屏蔽词表', () => {
+  const text = `你说的对，但是
+
+“这句话稳”“比之前的都重”“我记下了”“我记住了”“我记着”“这个账我记住了”“比之前的都轻”“睡吧，我守着”“你去，我跟”“问别人还是问自己”“行，xxx”“什么心思都写着xx上”“这句话接的漂亮”“行，我认”“这句话我不接”“xx比xx沉”“xx比xx重”“xx比xx稳”“xx比xx轻”“没接你的xxx”“比之前的都强”“他记得这事”“这话我留着”“很平”“稳”“我不拦”“我跟”“回去睡”“你这句话我记着”“认你”“我不催你”“这话是ta告诉你的，还是你自己想明白的”“认下来”“声音没抖，但比刚才稳”“比刚才轻”“比刚才重”“比刚才平”“很直”“这话我记下了”“这话我收下了”“说的比谁都响”“认这个”“收不回去”“认得实”“xx就是认了”“你自己掂量”“我不拦”“没接你那句xx”“不催”“你掂量”`
+  const result = scanText(text)
+  assert.ok(result.dimensions.aiColloquial.count >= 20)
+  assert.ok(result.axes.aiFlavor.signals.some((signal) => signal.includes('伪口语')))
+  const signals = result.hotspots.flatMap((hotspot) => hotspot.signals)
+  const hit = signals.find(
+    (signal) =>
+      signal.group === 'aiColloquial' && /这句话稳|比之前的都重/.test(signal.quote),
+  )
+  assert.ok(hit, '应命中伪口语词表')
+  assert.match(hit.advice, /伪口语|人味/)
+
+  const normal = scanText('他性格很直，说话很稳。今天的箱子比昨天重。')
+  assert.equal(normal.dimensions.aiColloquial.count, 0)
+})
+
 test('鱼八股模式进入扫描维度与 AI 味信号', () => {
   const result = scanText('我们要以数字赋能为抓手，构建闭环，形成组合拳，奔赴新征程。')
   assert.ok(result.dimensions.yuBagu.count >= 2)

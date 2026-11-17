@@ -51,3 +51,11 @@ test('鱼八股大词密集时给出结构线索', () => {
   assert.ok(items[0].structure.some((hint) => hint.kind === '鱼八股'))
   assert.match(items[0].structure.find((hint) => hint.kind === '鱼八股').advice, /具体对象/)
 })
+
+test('AI 伪口语进入词表建议', () => {
+  const items = suggestForText('“这句话稳”“比之前的都重”“我记下了”“你自己掂量”')
+  assert.equal(items.length, 1)
+  const hit = items[0].suggestions.find((item) => item.group === 'aiColloquial')
+  assert.ok(hit)
+  assert.match(hit.advice, /伪口语|人味/)
+})

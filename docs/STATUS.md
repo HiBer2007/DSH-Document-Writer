@@ -43,6 +43,11 @@
   - 模式 2+ 自动许可 `docwrite_review_extend`；模式 3 自动通过 S7 验收；模式 4/5 自动通过常规验收；模式 5 自动通过 U 确认
   - `docwrite_force_pause_review` 只注册在文档工坊预设，模式 4/5 才允许执行；question 工具不受影响
   - 模式按会话保存在 `$DSH_PROFILE_DIR/docwrite-modes.json`；`GET/POST /docwrite/mode`；非 docwrite 会话返回 403
+- **追加：AI 伪口语/伪对话腔屏蔽词表** ✅
+  - `rules/scan-rules.json` 新增 `aiColloquial` 组（权重 0.4），收录 49 条截图短对白金句及“你说的对，但是”开场
+  - 短句仅在引号内匹配，避免误伤“性格很直”“说话很稳”等正常表达；长句可无引号命中
+  - 扫描结果新增 `dimensions.aiColloquial`、`AI 伪口语 N 处` 信号与报告行；`aiFlavor` 计入该组
+  - `human-rubric.md` 轴 2 增第 12 类；`machine-flavor.md` 增 §12；降重/内容评审 skill 同步
 - **追加：检查更新** ✅
   - 面板右上角「检查更新」；CLI `docwrite update [--json]`；打开面板后每 6 小时自动检查
   - 有新版时右下角弹窗显示 Release 说明，提供「立即更新」和「跳过此版本」
@@ -100,10 +105,10 @@
 ## 测试
 
 ```
-npm test  →  139 tests, 0 fail
+npm test  →  141 tests, 0 fail
 ```
 
-覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、文档修改模式与强制暂停审阅、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
+覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、文档修改模式与强制暂停审阅、AI 伪口语屏蔽词表、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
 
 ## 当前可用命令
 
