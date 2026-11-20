@@ -3,7 +3,7 @@
 import { apply as applyAll } from './index.js'
 
 export const name = 'docwrite-tools'
-export const inject = ['tools', 'subprocess', 'userQuestions', 'workingDirectory', 'sessions']
+export const inject = ['tools', 'subprocess', 'userQuestions', 'workingDirectory', 'sessions', 'subagents']
 
 export function apply(ctx, config) {
   return applyAll(ctx, { ...config, mode: 'tools' })

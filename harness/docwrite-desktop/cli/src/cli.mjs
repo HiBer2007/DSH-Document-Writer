@@ -4,6 +4,7 @@ import { fromMdCommand } from './commands/convert.mjs'
 import { diffCommand, scanCommand, suggestCommand } from './commands/analysis.mjs'
 import {
   approveCommand,
+  blockCommand,
   initCommand,
   nextCommand,
   scopeCommand,
@@ -44,6 +45,7 @@ const COMMANDS = {
   status: statusCommand,
   next: nextCommand,
   approve: approveCommand,
+  block: blockCommand,
   stage: stageCommand,
   review: reviewCommand,
   unblock: unblockCommand,
@@ -100,6 +102,7 @@ const HELP = `docwrite — 文档工坊
   unarchive <项目名>                       恢复已归档项目
   update [--json]                          检查 GitHub 最新 Release
   unblock [--reset-all]                    解除 blocked
+  block --reason "..." [--by subagent] [--evidence "..."]  标记 blocked，等待用户接管
   scope show | set --mode scan --by user --quote "..."
   source add <文件> | declare "名称" | resolve "名称" | status
   ext list | install <目录> | enable <名称> | disable <名称>

@@ -723,8 +723,8 @@ window.__ModuleLoader__.load({
         en: 'Auto round extension',
         shortZh: '轮次+',
         shortEn: 'rounds',
-        zhDesc: '轮次用满后自动追加 1 轮；其他验收仍问你。',
-        enDesc: 'Auto-extend a capped review by one round; other gates still ask.',
+        zhDesc: '轮次用满后自动追加 1 轮；其他验收和 U 确认仍问你。',
+        enDesc: 'Auto-extend a capped review by one round; other gates and U confirmations still ask.',
       },
       {
         level: 3,
@@ -732,8 +732,9 @@ window.__ModuleLoader__.load({
         en: 'Auto reduce review',
         shortZh: '降重',
         shortEn: 'reduce',
-        zhDesc: '包含 2；S7 降重阶段的验收自动通过。',
-        enDesc: 'Includes 2; S7 reduce-stage acceptance is auto-passed.',
+        zhDesc: '包含 2；S7 降重验收和 U0–U7 确认自动通过；强制问询仍会中断。',
+        enDesc:
+          'Includes 2; S7 reduce acceptance and U0–U7 confirmations auto-pass; forced inquiry still interrupts.',
       },
       {
         level: 4,
@@ -741,14 +742,15 @@ window.__ModuleLoader__.load({
         en: 'Model-requested reviews only',
         shortZh: '通知',
         shortEn: 'notify',
-        zhDesc: '包含 3；常规验收自动通过，只有模型调用「强制暂停审阅」时才停下来问你。',
+        zhDesc:
+          '包含 3；常规验收和 U 确认自动通过，只有强制暂停/强制问询或子代理确认后的 block 才停。',
         enDesc:
-          'Includes 3; routine acceptance is auto-passed. Only the model’s force-pause review stops for you.',
+          'Includes 3; routine acceptance and U confirmations auto-pass. Only force-pause, forced inquiry, or a subagent-confirmed block stops.',
         danger: true,
         zhWarning:
-          '模式 4 会跳过常规验收。只有模型主动调用「强制暂停审阅」时才会暂停；如果模型不调用，你可能看不到中间审阅。',
+          '模式 4 会跳过常规验收和 U 确认。只有模型主动调用「强制暂停审阅」「强制问询」或经子代理确认的 block 时才会暂停；如果模型不调用，你可能看不到中间审阅。',
         enWarning:
-          'Mode 4 skips routine acceptance. It pauses only when the model calls the force-pause review tool; otherwise you may not see intermediate reviews.',
+          'Mode 4 skips routine acceptance and U confirmations. It pauses only for force-pause, forced inquiry, or a subagent-confirmed block; otherwise you may not see intermediate reviews.',
       },
       {
         level: 5,
@@ -756,14 +758,15 @@ window.__ModuleLoader__.load({
         en: 'Fully automatic (auto mode)',
         shortZh: '全自动',
         shortEn: 'auto',
-        zhDesc: '所有文档确认点、轮次追加和验收都自动通过；question 工具仍会正常中断。',
+        zhDesc:
+          '所有确认点、U 确认、轮次和验收都自动通过；强制问询也选默认项，只有通用 question 和子代理确认后的 block 仍会中断。',
         enDesc:
-          'All document approvals, extensions and acceptance auto-pass. The question tool still interrupts.',
+          'All approvals, U confirmations, extensions and acceptance auto-pass; forced inquiry uses the default. Only the generic question tool and a subagent-confirmed block still interrupt.',
         danger: true,
         zhWarning:
-          '模式 5 会自动通过所有文档确认点和验收，模型可以连续执行到交付。只有 question / 强制暂停审阅等用户交互仍会正常中断；请只在完全信任当前任务时使用。',
+          '模式 5 会自动通过所有文档确认点、U 确认和验收，强制问询也直接采用默认项。只有通用 question 和经子代理确认的 block 仍会正常中断；请只在完全信任当前任务时使用。',
         enWarning:
-          'Mode 5 auto-passes every document approval and acceptance, so the model can run through delivery. Only user interactions such as question / force-pause review still interrupt. Use only when you fully trust this task.',
+          'Mode 5 auto-passes every approval, U confirmation and acceptance, including forced inquiry (default option). Only the generic question tool and a subagent-confirmed block still interrupt. Use only when you fully trust this task.',
       },
     ]
 

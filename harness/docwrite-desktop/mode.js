@@ -20,7 +20,7 @@ export const DOC_MODES = [
     key: 'auto-round',
     label: '自动许可轮次增加',
     short: '轮次+',
-    description: '评审轮次用满后自动追加 1 轮；其他验收仍问你。',
+    description: '评审轮次用满后自动追加 1 轮；其他验收和 U 确认仍问你。',
     danger: false,
   },
   {
@@ -28,7 +28,7 @@ export const DOC_MODES = [
     key: 'auto-reduce',
     label: '自动许可降重审阅',
     short: '降重',
-    description: '包含 2；S7 降重阶段的验收自动通过。',
+    description: '包含 2；S7 降重验收和 U0–U7 确认自动通过；强制问询仍会中断。',
     danger: false,
   },
   {
@@ -36,20 +36,22 @@ export const DOC_MODES = [
     key: 'notify-only',
     label: '仅通知模型要求的审阅',
     short: '通知',
-    description: '包含 3；常规验收自动通过，只有模型调用「强制暂停审阅」时才停下来问你。',
+    description:
+      '包含 3；常规验收和 U 确认自动通过，只有强制暂停/强制问询或子代理确认后的 block 才停。',
     danger: true,
     warning:
-      '模式 4 会跳过常规验收。只有模型主动调用「强制暂停审阅」工具时才会暂停；如果模型不调用，你可能看不到中间审阅。',
+      '模式 4 会跳过常规验收和 U 确认。只有模型主动调用「强制暂停审阅」「强制问询」或经子代理确认的 block 时才会暂停；如果模型不调用，你可能看不到中间审阅。',
   },
   {
     level: 5,
     key: 'auto',
     label: '全自动许可（auto mode）',
     short: '全自动',
-    description: '所有文档确认点、轮次追加和验收都自动通过；question 工具仍会正常中断。',
+    description:
+      '所有确认点、U 确认、轮次和验收都自动通过；强制问询也选默认项，只有通用 question 和子代理确认后的 block 仍会中断。',
     danger: true,
     warning:
-      '模式 5 会自动通过所有文档确认点和验收，模型可以连续执行到交付。只有 question / 强制暂停审阅等用户交互仍会正常中断；请只在完全信任当前任务时使用。',
+      '模式 5 会自动通过所有文档确认点、U 确认和验收，模型可以连续执行到交付；强制问询也会直接采用默认项。只有通用 question 和经子代理确认的 block 仍会正常中断；请只在完全信任当前任务时使用。',
   },
 ]
 

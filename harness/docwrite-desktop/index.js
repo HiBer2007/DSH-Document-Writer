@@ -10,7 +10,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, wri
 import { execFile } from 'node:child_process'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { DOC_MODES, getSessionMode, setSessionMode } from './mode.js'
+import { DOC_MODES, getSessionMode, modeInfo, setSessionMode } from './mode.js'
 
 export const name = 'docwrite-harness'
 export const inject = ['webServer', 'sessions', 'sessionQuery']
@@ -68,6 +68,50 @@ const APPROVAL_QUESTION = {
   U5: '要不要降重？降哪些部分？目标是什么？',
   U6: '确认把 Markdown 转成 docx/pptx？',
   U7: '确认交付这些文件？',
+}
+
+const APPROVAL_OPTIONS = {
+  U0: ['受理信息正确，继续', '需要修改'],
+  U1: ['约束清单可用，继续', '有遗漏或冲突，需要修改'],
+  U2: ['规格与大纲方向正确，继续', '需要调整'],
+  U3: ['提纲确认，进入写作', '需要修改提纲'],
+  U4: ['认可评审结论，继续', '需要复核或修改'],
+  U5: ['按现有范围降重', '只降高风险段落', '不降重（需另行 waive S7）'],
+  U6: ['确认转换', '暂不转换'],
+  U7: ['确认交付', '暂不交付'],
+}
+
+function autoApprovalNotice(mode, action, defaultOption, extra = '') {
+  const info = modeInfo(mode)
+  return `此处为自动审批通过：${action} 已由文档修改模式 ${mode}「${info.label}」自动确认，采用默认项「${defaultOption}」。${extra}`.trim()
+}
+
+function subagentText(result) {
+  return (result?.output ?? [])
+    .filter((block) => block?.type === 'text' && typeof block.text === 'string')
+    .map((block) => block.text)
+    .join('\n')
+    .trim()
+}
+
+function subagentJson(result) {
+  if (result?.structured && typeof result.structured === 'object') return result.structured
+  const text = subagentText(result)
+  if (!text) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    const start = text.indexOf('{')
+    const end = text.lastIndexOf('}')
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(text.slice(start, end + 1))
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
 }
 
 const STAGE_ICON = {
@@ -159,7 +203,7 @@ function renderStatus(value) {
   }
   if (value.pendingApproval) {
     lines.push('', `⚠️ 待确认 ${value.pendingApproval.gate}：${value.pendingApproval.question}`)
-    lines.push(`   docwrite approve ${value.pendingApproval.gate} --by user --quote "用户原话"`)
+    lines.push(`   docwrite_u_confirm ${value.pendingApproval.gate} --project ${value.project ?? '<项目>'}`)
   } else if (value.next) {
     lines.push('', `👉 下一阶段：${value.next}`)
   } else {
@@ -1168,7 +1212,7 @@ export function apply(ctx, config) {
     ctx.tools.register({
       name: 'docwrite_next',
       description:
-        '返回下一阶段、对应 skill、待确认点与进入命令。每次开工前先调用；pendingApproval 非空时必须先问用户，blocked 非空时不得开工。',
+        '返回下一阶段、对应 skill、待确认点与进入命令。每次开工前先调用；pendingApproval 非空时用 docwrite_u_confirm（不要用通用 question），blocked 非空时不得开工。',
       parameters: {
         type: 'object',
         properties: { project: projectParam },
@@ -1178,7 +1222,21 @@ export function apply(ctx, config) {
       async execute(args, exec) {
         const { resolveProject, callCliJson } = await toolContext(exec)
         const name = resolveProject(args?.project)
-        return callCliJson(['next', '--json', '--project', name])
+        const value = await callCliJson(['next', '--json', '--project', name])
+        const mode = getSessionMode(exec.agent?.id)
+        const pending = value?.pendingApproval ?? null
+        return {
+          ...value,
+          mode,
+          modeName: modeInfo(mode).label,
+          confirmTool: pending
+            ? {
+                name: 'docwrite_u_confirm',
+                gate: pending.gate,
+                forceAvailable: mode >= 3 && mode < 5,
+              }
+            : null,
+        }
       },
     }),
   )
@@ -1187,7 +1245,7 @@ export function apply(ctx, config) {
     ctx.tools.register({
       name: 'docwrite_stage_enter',
       description:
-        '进入指定阶段（S0–S11）。CLI 会检查前置阶段、blocked 和待确认点；缺 U 确认时先向用户要原话，再用 docwrite_approve 记录。',
+        '进入指定阶段（S0–S11）。CLI 会检查前置阶段、blocked 和待确认点；缺 U 确认时用 docwrite_u_confirm（模式 1/2 问问用户，模式 3+ 自动通过），不要用通用 question。',
       parameters: {
         type: 'object',
         properties: {
@@ -1239,12 +1297,12 @@ export function apply(ctx, config) {
     ctx.tools.register({
       name: 'docwrite_approve',
       description:
-        '记录用户确认点（U0–U7）。模式 1–4 下 quote 必须是用户原话，不许模型代写；模式 5（全自动）下可省略 quote，由模式记录自动许可。CLI 仍拒绝空 quote。',
+        '直接记录 U0–U7 的低层入口。优先使用 docwrite_u_confirm（会展示确认项）；模式 3+ 下省略 quote 会自动确认并返回 notice，模式 1/2 必须提供用户原话。',
       parameters: {
         type: 'object',
         properties: {
           gate: { type: 'string', description: '确认点，U0–U7' },
-          quote: { type: 'string', description: '用户原话；模式 1–4 必填，模式 5 可省略' },
+          quote: { type: 'string', description: '用户原话；模式 1/2 必填，模式 3+ 可省略' },
           project: projectParam,
         },
         required: ['gate'],
@@ -1256,13 +1314,190 @@ export function apply(ctx, config) {
         const gate = String(args?.gate ?? '')
         if (!/^U[0-7]$/.test(gate)) throw new Error(`gate 必须是 U0–U7，收到：${gate}`)
         const mode = getSessionMode(exec.agent?.id)
-        const quote =
-          String(args?.quote ?? '').trim() ||
-          (mode >= 5 ? '文档修改模式 5：全自动许可' : '')
+        const supplied = String(args?.quote ?? '').trim()
+        const auto = !supplied && mode >= 3
+        const quote = supplied || (auto ? `文档修改模式 ${mode}：自动确认 ${gate}` : '')
         if (!quote) throw new Error('quote 必须是用户原话，不能为空')
         const name = resolveProject(args?.project)
         const result = await callCli(['approve', gate, '--by', 'user', '--quote', quote, '--project', name])
-        return { ok: true, gate, project: name, mode, auto: mode >= 5, output: result.stdout.trim() }
+        return {
+          ok: true,
+          gate,
+          project: name,
+          mode,
+          modeName: modeInfo(mode).label,
+          auto,
+          quote,
+          ...(auto
+            ? { notice: autoApprovalNotice(mode, `${gate} 确认`, '继续（低层 approve 入口）') }
+            : {}),
+          output: result.stdout.trim(),
+        }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.tools.register({
+      name: 'docwrite_u_confirm',
+      description:
+        '确认 U0–U7 的专用工具。模式 1/2 必须让用户选择；模式 3/4 自动采用默认项，只有 force=true 才中断问用户；模式 5 连 force 也自动采用默认项。自动通过会在 notice 里说明模式等级、名称和默认项。不要再用通用 question 工具代替 U 确认。',
+      parameters: {
+        type: 'object',
+        properties: {
+          gate: { type: 'string', enum: ['U0', 'U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7'] },
+          project: projectParam,
+          force: {
+            type: 'boolean',
+            description: '模式 3/4 下强制中断问用户；模式 1/2 本来就问；模式 5 忽略并自动选默认项',
+          },
+          note: { type: 'string', description: '给用户看的补充说明（可选）' },
+        },
+        required: ['gate'],
+        additionalProperties: false,
+      },
+      output: textOutput((value) => JSON.stringify(value, null, 2)),
+      async execute(args, exec) {
+        const { root, projectState, resolveProject, callCli } = await toolContext(exec)
+        const gate = String(args?.gate ?? '')
+        if (!APPROVAL_QUESTION[gate]) throw new Error(`gate 必须是 U0–U7，收到：${gate}`)
+        if (!exec.agent) throw new Error('docwrite_u_confirm 需要 agent 会话')
+        const mode = getSessionMode(exec.agent?.id)
+        const info = modeInfo(mode)
+        const force = Boolean(args?.force)
+        const name = resolveProject(args?.project)
+        const found = projectState(name)
+        if (!found) throw new Error(`项目不存在或未初始化：${name}`)
+        const state = found.state
+        const options = APPROVAL_OPTIONS[gate]
+        const defaultOption = options[0]
+        const question = APPROVAL_QUESTION[gate]
+        const stage = state.current
+        const projectDir = join(root, 'projects', name)
+        const note = String(args?.note ?? '').trim()
+        let detail = `项目：${name}｜当前阶段：${stage}｜文档修改模式 ${mode}「${info.label}」`
+        if (note) detail += `\n${note}`
+        try {
+          detail += `\n\n${buildGateDetail(state, stage, projectDir)}`
+        } catch {
+          // 状态异常时仍允许确认，只给基础信息。
+        }
+
+        const shouldAsk = mode <= 2 || (force && mode < 5)
+        if (!shouldAsk) {
+          const quote = `文档修改模式 ${mode}：自动确认 ${gate}（${defaultOption}）`
+          const result = await callCli([
+            'approve',
+            gate,
+            '--by',
+            'user',
+            '--quote',
+            quote,
+            '--project',
+            name,
+          ])
+          return {
+            ok: true,
+            approved: true,
+            auto: true,
+            forced: force,
+            gate,
+            project: name,
+            stage,
+            mode,
+            modeName: info.label,
+            defaultOption,
+            quote,
+            notice: autoApprovalNotice(
+              mode,
+              `${gate} 确认`,
+              defaultOption,
+              force && mode === 5 ? ' 本次强制问询在模式 5 下也被跳过。' : '',
+            ),
+            output: result.stdout.trim(),
+          }
+        }
+
+        const answer = await ctx.userQuestions.ask({
+          agent: exec.agent,
+          signal: exec.signal,
+          wait: { callId: exec.callId },
+          questions: [
+            {
+              id: 'docwrite-u-confirm',
+              header: `文档工坊 · ${gate} 确认`,
+              question,
+              detail,
+              options: options.map((label, index) => ({
+                label,
+                description:
+                  index === 0
+                    ? '默认项：模式 3/4 自动通过时会采用它'
+                    : gate === 'U5' && label.startsWith('不降重')
+                      ? '记录不降重；S7 仍需另行 waive'
+                      : '选择后不记录本次确认',
+              })),
+            },
+          ],
+        })
+
+        const item = answer?.answers?.find((entry) => entry.id === 'docwrite-u-confirm')
+        const selected = item?.selected ?? []
+        const custom = (item?.custom ?? '').trim()
+        const choice = custom || selected[0] || ''
+        if (!choice) {
+          return {
+            ok: false,
+            approved: false,
+            gate,
+            project: name,
+            mode,
+            modeName: info.label,
+            reason: 'no-answer',
+            message: '用户没有选择确认项；不要自行 approve。',
+          }
+        }
+        const declined =
+          gate !== 'U5' &&
+          (options.slice(1).includes(choice) ||
+            /^(需要|暂不|有遗漏|不通过|不同意)/.test(choice))
+        if (declined) {
+          return {
+            ok: false,
+            approved: false,
+            gate,
+            project: name,
+            mode,
+            modeName: info.label,
+            reason: 'user-declined',
+            quote: choice,
+            message: '用户没有确认；按用户要求修改或暂停，不要继续进入下一阶段。',
+          }
+        }
+
+        const result = await callCli([
+          'approve',
+          gate,
+          '--by',
+          'user',
+          '--quote',
+          choice,
+          '--project',
+          name,
+        ])
+        return {
+          ok: true,
+          approved: true,
+          auto: false,
+          forced: force,
+          gate,
+          project: name,
+          stage,
+          mode,
+          modeName: info.label,
+          quote: choice,
+          output: result.stdout.trim(),
+        }
       },
     }),
   )
@@ -1469,7 +1704,17 @@ export function apply(ctx, config) {
           limit: limit + 1,
           quote,
           mode,
+          modeName: modeInfo(mode).label,
           auto: mode >= 2,
+          ...(mode >= 2
+            ? {
+                notice: autoApprovalNotice(
+                  mode,
+                  `${stage} 评审轮次追加`,
+                  '允许，加 1 轮',
+                ),
+              }
+            : {}),
           output: result.stdout.trim(),
         }
       },
@@ -1512,11 +1757,17 @@ export function apply(ctx, config) {
             feedback: '',
             auto: true,
             mode,
+            modeName: modeInfo(mode).label,
             notified: mode === 4,
             message:
               mode >= 4
                 ? `文档修改模式 ${mode}：常规验收自动通过；只有强制暂停审阅会打断。`
                 : `文档修改模式 ${mode}：S7 降重审阅自动通过。`,
+            notice: autoApprovalNotice(
+              mode,
+              `${stage} 验收`,
+              '合格，可以进入下一步',
+            ),
             artifacts: ARTIFACTS[stage] ?? [],
             summary: detail,
             next: `docwrite_stage_done ${stage}`,
@@ -1584,7 +1835,7 @@ export function apply(ctx, config) {
     ctx.tools.register({
       name: 'docwrite_force_pause_review',
       description:
-        '文档修改模式 4/5 专用：强制暂停自动流程，把当前阶段成果交给用户审阅。低于模式 4 调用会被拒绝；模式 5 下调用它也会正常中断。',
+        '文档修改模式 4/5 专用：强制暂停自动流程，把当前阶段成果交给用户审阅。低于模式 4 调用会被拒绝；模式 5 下强制问询也直接采用默认项「已审阅，继续」，不中断。',
       parameters: {
         type: 'object',
         properties: {
@@ -1616,6 +1867,28 @@ export function apply(ctx, config) {
         if (!STAGE_MAP[stage]) throw new Error(`未知阶段：${stage}`)
         const reason = String(args?.reason ?? '').trim()
         const detail = buildGateDetail(state, stage, join(root, 'projects', name))
+        if (mode >= 5) {
+          const defaultOption = '已审阅，继续'
+          return {
+            ok: true,
+            project: name,
+            stage,
+            mode,
+            modeName: modeInfo(mode).label,
+            verdict: 'continue',
+            feedback: '',
+            auto: true,
+            forced: true,
+            defaultOption,
+            notice: autoApprovalNotice(
+              mode,
+              `${stage} 强制暂停审阅`,
+              defaultOption,
+              ' 本次强制问询在模式 5 下也被跳过。',
+            ),
+            summary: detail,
+          }
+        }
         const answer = await ctx.userQuestions.ask({
           agent: exec.agent,
           signal: exec.signal,
@@ -1650,6 +1923,215 @@ export function apply(ctx, config) {
           feedback,
           artifacts: ARTIFACTS[stage] ?? [],
           summary: detail,
+        }
+      },
+    }),
+  )
+
+  ctx.effect(() =>
+    ctx.tools.register({
+      name: 'docwrite_block',
+      description:
+        '仅模式 4/5：确实无法继续时，先启动独立子代理核查；只有子代理确认“无论如何都不能继续”才 block 并停止等待用户接管。子代理认为仍有可行路径时不 block。',
+      parameters: {
+        type: 'object',
+        properties: {
+          project: projectParam,
+          reason: { type: 'string', description: '为什么无法继续；写清已经尝试过什么' },
+          evidence: { type: 'string', description: '可选：相关错误、文件或检查结果' },
+        },
+        required: ['reason'],
+        additionalProperties: false,
+      },
+      output: textOutput((value) => JSON.stringify(value, null, 2)),
+      async execute(args, exec) {
+        const { root, projectState, resolveProject, callCli } = await toolContext(exec)
+        const mode = getSessionMode(exec.agent?.id)
+        const info = modeInfo(mode)
+        if (mode < 4) {
+          return {
+            ok: false,
+            blocked: false,
+            reason: 'mode-too-low',
+            mode,
+            message: 'docwrite_block 仅在文档修改模式 4/5 可用；低模式请先向用户说明并请求接管。',
+          }
+        }
+        if (!exec.agent) throw new Error('docwrite_block 需要 agent 会话')
+        const name = resolveProject(args?.project)
+        const found = projectState(name)
+        if (!found) throw new Error(`项目不存在或未初始化：${name}`)
+        const state = found.state
+        if (state.blocked) {
+          return {
+            ok: true,
+            blocked: true,
+            alreadyBlocked: true,
+            stop: true,
+            project: name,
+            mode,
+            modeName: info.label,
+            blockedReason: state.blocked.reason ?? null,
+          }
+        }
+        const reason = String(args?.reason ?? '').trim()
+        if (!reason) throw new Error('reason 不能为空：写清为什么无法继续')
+        const evidence = String(args?.evidence ?? '').trim()
+        const service = ctx.get?.('subagents') ?? ctx.subagents
+        if (!service || typeof service.startActivation !== 'function') {
+          throw new Error('docwrite_block 需要 subagents 服务；当前组合不可用')
+        }
+        const stage = state.current
+        const detail = `项目：${name}\n当前阶段：${stage}\n原因：${reason}${evidence ? `\n证据：${evidence}` : ''}`
+        const prompt = `你是「文档工坊」的独立阻断核查员。主代理认为当前文档任务无论如何都不能继续，准备 block 并等待用户接管。
+
+你的职责是独立核查，不是执行任务，也不要修改任何文件：
+- 先理解项目当前阶段、目标、已尝试的路径与错误证据；
+- 检查是否仍有可行路径：补充素材/引用、缩小范围、waive 软门禁、改格式、询问用户、换工具、回退阶段、修复环境；
+- 只有这些路径都不可行，或继续会造成不可接受的风险时，才判定 canContinue=false；
+- 只要还有一条具体可尝试的路，就判 canContinue=true，并给出 alternatives。
+
+${detail}
+
+只输出 JSON：
+{"canContinue": boolean, "reason": "一句话结论", "alternatives": ["仍可尝试的具体路径"]}`
+
+        let activation
+        try {
+          activation = await service.startActivation({
+            provider: 'spawn',
+            label: 'docwrite-block-review',
+            request: {
+              parent: exec.agent,
+              cwd: root,
+              prompt: [{ type: 'text', text: prompt }],
+              maxDepth: 0,
+              outputSchema: {
+                type: 'object',
+                properties: {
+                  canContinue: { type: 'boolean' },
+                  reason: { type: 'string' },
+                  alternatives: { type: 'array', items: { type: 'string' } },
+                },
+                required: ['canContinue', 'reason'],
+                additionalProperties: false,
+              },
+            },
+            signal: exec.signal,
+            delivery: 'caller',
+          })
+        } catch (err) {
+          return {
+            ok: false,
+            blocked: false,
+            confirmed: false,
+            reason: 'reviewer-start-failed',
+            mode,
+            modeName: info.label,
+            message: `子代理核查无法启动，未执行 block：${err?.message ?? String(err)}`,
+          }
+        }
+
+        let result
+        try {
+          result = await activation.result
+        } catch (err) {
+          return {
+            ok: false,
+            blocked: false,
+            confirmed: false,
+            reason: 'reviewer-failed',
+            mode,
+            modeName: info.label,
+            childId: activation.childId ?? null,
+            message: `子代理核查失败，未执行 block：${err?.message ?? String(err)}`,
+          }
+        }
+        const verdict = subagentJson(result)
+        const reviewerReason =
+          typeof verdict?.reason === 'string' ? verdict.reason.trim() : ''
+        if (!verdict || typeof verdict.canContinue !== 'boolean') {
+          return {
+            ok: false,
+            blocked: false,
+            confirmed: false,
+            reason: 'reviewer-inconclusive',
+            mode,
+            modeName: info.label,
+            childId: activation.childId ?? null,
+            reviewerReason,
+            stopReason: result?.stopReason ?? null,
+            message: '子代理没有给出可判定的核查结论，未执行 block。',
+          }
+        }
+        if (verdict.canContinue === true) {
+          return {
+            ok: false,
+            blocked: false,
+            confirmed: false,
+            reason: 'can-still-continue',
+            mode,
+            modeName: info.label,
+            childId: activation.childId ?? null,
+            reviewerReason,
+            alternatives: Array.isArray(verdict.alternatives) ? verdict.alternatives : [],
+            message: '子代理认为仍有可行路径，未执行 block；先尝试这些路径。',
+          }
+        }
+
+        const reviewer = `子代理 ${activation.childId ?? '?'} 核查：${reviewerReason || '确认无法继续'}`
+        const cli = await callCli([
+          'block',
+          '--reason',
+          reason,
+          '--by',
+          'subagent',
+          '--evidence',
+          evidence ? `${reviewer}；证据：${evidence}` : reviewer,
+          '--project',
+          name,
+        ])
+        let acknowledged = false
+        try {
+          const answer = await ctx.userQuestions.ask({
+            agent: exec.agent,
+            signal: exec.signal,
+            wait: { callId: exec.callId },
+            questions: [
+              {
+                id: 'docwrite-block-takeover',
+                header: '文档工坊 · 已阻断，等待接管',
+                question:
+                  '独立子代理已确认无法继续，项目已 block。请接管处理；解除时运行 docwrite unblock。',
+                detail: `阻断原因：${reason}\n核查结论：${reviewerReason}\n\n${detail}`,
+                options: [
+                  {
+                    label: '我知道了，保持阻断',
+                    description: '模型停止继续工作，等待你下一步指令或手动 unblock。',
+                  },
+                ],
+              },
+            ],
+          })
+          acknowledged = Boolean(answer)
+        } catch {
+          // 用户关闭卡片也保持 blocked；不要自动解除。
+        }
+        return {
+          ok: true,
+          blocked: true,
+          stop: true,
+          confirmed: true,
+          project: name,
+          stage,
+          mode,
+          modeName: info.label,
+          childId: activation.childId ?? null,
+          reviewerReason,
+          acknowledged,
+          blockedReason: reason,
+          message: '已 block：停止继续工作，等待用户接管。除 docwrite_status/unblock 外不要继续流水线。',
+          output: cli.stdout.trim(),
         }
       },
     }),

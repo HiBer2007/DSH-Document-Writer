@@ -3,6 +3,7 @@ import { parseArgs, requirePositional } from '../core/args.mjs'
 import { initProject } from '../core/project.mjs'
 import {
   approve,
+  block,
   computeStatus,
   loadConfig,
   loadState,
@@ -140,6 +141,30 @@ export async function approveCommand(argv) {
   } else {
     console.log(`✅ 已记录确认 ${gate}：${flags.quote}`)
   }
+  return EXIT.OK
+}
+
+export async function blockCommand(argv) {
+  const { flags } = parseArgs(argv)
+  const { dir, state } = projectFromFlags(flags)
+  const reason = String(flags.reason ?? '').trim()
+  if (!reason) {
+    throw new CliError(
+      '用法：docwrite block --reason "为什么无法继续" [--by subagent] [--evidence "核查结论"]',
+      EXIT.USAGE,
+    )
+  }
+  block(dir, state, {
+    reason,
+    by: flags.by ?? 'subagent',
+    evidence: flags.evidence ?? '',
+  })
+  if (flags.json) {
+    console.log(JSON.stringify(state.blocked, null, 2))
+    return EXIT.OK
+  }
+  console.log(`⛔ 已阻断：${reason}`)
+  console.log('   等待用户接管；用户处理后可运行 docwrite unblock。')
   return EXIT.OK
 }
 

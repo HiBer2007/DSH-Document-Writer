@@ -229,6 +229,27 @@ export function approve(projectDir, state, gate, { by, quote } = {}) {
   return state
 }
 
+/** 人工/子代理核查后的阻断；blocked 后 stage enter/done 都会被拒绝。 */
+export function block(projectDir, state, { reason, by = 'subagent', evidence = '' } = {}) {
+  if (!reason || !String(reason).trim()) {
+    throw new CliError('block 必须说明原因（--reason）', EXIT.USAGE)
+  }
+  state.blocked = {
+    reason: String(reason).trim(),
+    by: String(by || 'subagent'),
+    evidence: String(evidence || '').trim(),
+    at: now(),
+  }
+  appendEvent(projectDir, {
+    type: 'block',
+    reason: state.blocked.reason,
+    by: state.blocked.by,
+    evidence: state.blocked.evidence,
+  })
+  saveState(projectDir, state)
+  return state
+}
+
 export function unblock(projectDir, state, mode) {
   if (!state.blocked) return state
   if (mode === 'reset-all') {

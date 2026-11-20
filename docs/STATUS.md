@@ -27,7 +27,7 @@
   - `docwrite mode install --profile dsh-tui` 写入 `preset-docwrite` 行；旧动态 `.mjs` 自动清理
   - `dsh --profile dsh-tui --dump-config` 组合通过；预设包与 include 包从 dsh 安装目录可解析
 - **追加：DSH Desktop 集成** ✅
-  - bundle `harness/docwrite-desktop`：声明式预设 + 14 个封装工具 + S8 硬门禁 + 面板/更新/模式路由 + 左侧栏「文档工坊」面板
+  - bundle `harness/docwrite-desktop`：声明式预设 + 16 个封装工具 + S8 硬门禁 + 面板/更新/模式路由 + 左侧栏「文档工坊」面板
   - 工具与门禁按**当前会话工作区**运行（`ctx.workingDirectory.ensure`）；CLI 打包在插件的 `cli/`，不再读安装时的固定路径
   - GUI 面板不再依赖 `useWorkspaces` 的当前项：无 `root` 时汇总所有活会话里已初始化项目的工作区，卡片标注 workspace
   - 已安装到 `desktop` profile；`/docwrite/presets` 返回 `docwrite` 且 `resolved: true`、`broken: null`
@@ -40,8 +40,11 @@
 - **追加：文档修改模式（仅 Desktop / 仅文档工坊）** ✅
   - 输入框工具行「工作区内修改」右侧注册「文档修改」按钮；`conversation.input.left` 槽，按 `agentPreset === 'docwrite'` 显示
   - 5 级：完全人工 → 自动轮次 → 自动降重审阅 → 仅通知模型要求的审阅 → 全自动；3 含 2，4/5 弹高风险确认
-  - 模式 2+ 自动许可 `docwrite_review_extend`；模式 3 自动通过 S7 验收；模式 4/5 自动通过常规验收；模式 5 自动通过 U 确认
-  - `docwrite_force_pause_review` 只注册在文档工坊预设，模式 4/5 才允许执行；question 工具不受影响
+  - 模式 2+ 自动许可 `docwrite_review_extend`；模式 3 自动通过 S7 验收与 U0–U7；模式 4/5 自动通过常规验收；模式 5 强制问询也选默认项
+  - `docwrite_u_confirm` 专用于 U 确认：模式 1/2 问用户，模式 3/4 自动通过、force 才询问，模式 5 连 force 也选默认项
+  - `docwrite_force_pause_review` 只注册在文档工坊预设，模式 4/5 才允许执行；模式 5 强制暂停也选默认项
+  - `docwrite_block` 仅模式 4/5：先由独立子代理核查，确认无法继续才 block、停止并弹卡等待用户接管
+  - 所有 auto 通过返回 `auto`、`mode`、`modeName`、`notice`，明确“此处为自动审批通过”及默认项
   - 模式按会话保存在 `$DSH_PROFILE_DIR/docwrite-modes.json`；`GET/POST /docwrite/mode`；非 docwrite 会话返回 403
 - **追加：AI 伪口语/伪对话腔屏蔽词表** ✅
   - `rules/scan-rules.json` 新增 `aiColloquial` 组（权重 0.4），收录 49 条截图短对白金句及“你说的对，但是”开场
@@ -105,17 +108,17 @@
 ## 测试
 
 ```
-npm test  →  141 tests, 0 fail
+npm test  →  143 tests, 0 fail
 ```
 
-覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、文档修改模式与强制暂停审阅、AI 伪口语屏蔽词表、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
+覆盖：XML/zip/docx/pptx、填充/替换/md、扫描/建议/比对、状态机/确认点/循环/评审、作用域/素材/扩展、verify/deliver、模式安装（含声明式 preset 行迁移）、12 阶段端到端、PDF 后端选择、ppt 命令映射、Desktop 插件 manifest/路由/门禁/真实 CLI 调用、文档修改模式、U 专用确认、强制暂停、子代理核查 block、AI 伪口语屏蔽词表、人工验收工具、鱼八股扫描与结构线索、按会话工作区运行与内置 CLI。
 
 ## 当前可用命令
 
 ```
 init / status / next / approve
 stage enter|done|waive|reopen|jump
-review open|submit|status / verify / deliver / unblock
+review open|submit|status / block / verify / deliver / unblock
 scope show|set / source add|declare|resolve|status
 ext list|install|enable|disable / skills list|show / dispatch
 docx read|inspect|fill|replace|md / pptx read|notes|fill / from-md

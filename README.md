@@ -65,8 +65,8 @@ node bin/docwrite.mjs help
 | 引用 | 用途 |
 | --- | --- |
 | `main` | 开发分支，日常提交先到这里 |
-| `release` | 稳定发布快照；当前指向 `v1.3.1` |
-| `v1.3.1` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
+| `release` | 稳定发布快照；当前指向 `v1.4.0` |
+| `v1.4.0` | 当前 Release 标签，与 `package.json` 的 `version` 一致 |
 
 - **用稳定版**：克隆 `release` 或检出标签：
 
@@ -75,7 +75,7 @@ node bin/docwrite.mjs help
   # 或
   git clone git@github.com:HiBer2007/DSH-Document-Writer.git
   cd DSH-Document-Writer
-  git checkout v1.3.1
+  git checkout v1.4.0
   ```
 
 - **跟进最新功能**：用 `main`。
@@ -86,8 +86,8 @@ node bin/docwrite.mjs help
   npm test
   git switch release
   git merge --ff-only main
-  git tag -a v1.3.2 -m "文档工坊 v1.3.2"
-  git push origin release v1.3.2
+  git tag -a v1.4.1 -m "文档工坊 v1.4.1"
+  git push origin release v1.4.1
   git switch main
   ```
 
@@ -96,7 +96,7 @@ node bin/docwrite.mjs help
 
 - `release` 只放可发布状态，不直接加功能提交；功能、重构、文档修改先走 `main`。
 - 发布前把 `package.json` 的 `version` 与标签改成同一个版本号；当前是
-  `1.3.1` / `v1.3.1`。
+  `1.4.0` / `v1.4.0`。
 - **检查更新**：面板右上角「检查更新」按钮，或 CLI：
 
   ```powershell
@@ -162,9 +162,9 @@ plugin_manager  action: install_bundle
 - 左侧栏出现「文档工坊」面板，显示阶段进度、待确认点、blocked 原因；
   项目卡片可手动**归档/恢复**，归档只写 `.run/panel.json`，数据和流程状态都不动；
   右上角有「检查更新」；有新版时右下角弹窗显示 Release 说明，可立即更新或跳过此版本；
-- 模型侧多出 14 个工具：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、`docwrite_next`、`docwrite_stage_enter`、
-  `docwrite_stage_done`、`docwrite_approve`、`docwrite_review_open`、`docwrite_review_submit`、
-  `docwrite_review_extend`、`docwrite_visual_check`、`docwrite_force_pause_review`、`docwrite_verify`、`docwrite_deliver`；
+- 模型侧多出 16 个工具：`docwrite_init`、`docwrite_constraints`、`docwrite_status`、`docwrite_next`、`docwrite_stage_enter`、
+  `docwrite_stage_done`、`docwrite_approve`、`docwrite_u_confirm`、`docwrite_review_open`、`docwrite_review_submit`、
+  `docwrite_review_extend`、`docwrite_visual_check`、`docwrite_force_pause_review`、`docwrite_block`、`docwrite_verify`、`docwrite_deliver`；
   **这些工具只在「文档工坊」预设内注册**，标准/极简等其他模式不会看到，也不会带进相关提示词；
 - `docwrite_visual_check` 会把当前成果做成验收卡（阶段进度、产物、指标、正文预览），
   问用户“合格 / 需要修改 / 暂不判断”。
@@ -177,18 +177,24 @@ plugin_manager  action: install_bundle
 
 | 等级 | 名称 | 行为 |
 | --- | --- | --- |
-| 1 | 完全人工审阅 | 轮次追加、阶段验收、确认点都问你（默认） |
-| 2 | 自动许可轮次增加 | 评审轮次用满后自动追加 1 轮；其他验收仍问你 |
-| 3 | 自动许可降重审阅 | 包含 2；S7 降重阶段验收自动通过 |
-| 4 | 仅通知模型要求的审阅 | 包含 3；常规验收自动通过，只有模型调用「强制暂停审阅」时才停下来问你 |
-| 5 | 全自动许可（auto mode） | 轮次追加、验收和 U 确认点都自动通过；question 工具仍会正常中断 |
+| 1 | 完全人工审阅 | 轮次追加、阶段验收、U 确认都问你（默认） |
+| 2 | 自动许可轮次增加 | 轮次用满后自动追加 1 轮；其他验收和 U 确认仍问你 |
+| 3 | 自动许可降重审阅 | 包含 2；S7 降重验收和 U0–U7 确认自动通过；强制问询仍会中断 |
+| 4 | 仅通知模型要求的审阅 | 包含 3；常规验收和 U 确认自动通过，只有强制暂停/强制问询或子代理确认后的 block 才停 |
+| 5 | 全自动许可（auto mode） | 所有确认点、U 确认、轮次和验收自动通过；强制问询也选默认项，只有 question 和 block 仍中断 |
 
 - 选择 4/5 会先弹**高风险确认**；确认后才会写入。
 - 3 明确包含 2；4、5 依次包含更低等级。
-- 模式 4 新增专有工具 `docwrite_force_pause_review`，用于让模型主动发起强制暂停审阅；
-  它**只注册在文档工坊预设内**，低于模式 4 调用会被拒绝。
-- 模式 5 只自动通过文档工坊自己的确认点/验收；`question`、强制暂停审阅等用户交互仍会正常中断。
-- 这个模式不改变 DSH 的沙箱/审批权限预设，只控制文档工坊的评审与验收自动化。
+- **U 确认专用工具 `docwrite_u_confirm`**：模式 1/2 必须用户选择；模式 3/4 自动采用默认项，
+  只有 `force: true` 才中断问用户；模式 5 连 force 也直接采用默认项。
+- 模式 4 另有 `docwrite_force_pause_review`，用于让模型主动发起强制暂停审阅；
+  模式 5 下它也会直接采用默认项「已审阅，继续」。
+- **block 专用工具 `docwrite_block`**（仅模式 4/5）：先启动独立子代理核查；只有子代理确认
+  “无论如何都不能继续”才执行 `block`、停止流水线并弹卡等待用户接管；子代理认为仍有路径时不 block。
+- 所有自动审批通过都会在结果里返回 `auto: true`、`mode`、`modeName` 和 `notice`，
+  明确告诉模型“此处为自动审批通过”以及当前等级与默认项。
+- 模式 5 只自动通过文档工坊自己的确认点/验收；通用 `question` 和子代理确认后的 `block` 仍会正常中断。
+- 这个模式不改变 DSH 的沙箱/审批权限预设，只控制文档工坊的评审、U 确认与阻断自动化。
 - Host 路由：`GET/POST /docwrite/mode`；模式文件按 profile 保存在
   `$DSH_PROFILE_DIR/docwrite-modes.json`，按会话 id 区分。
 

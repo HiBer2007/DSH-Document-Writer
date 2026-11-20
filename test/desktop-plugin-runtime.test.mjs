@@ -126,8 +126,8 @@ function makeCtx({
       const disposer = callback()
       return typeof disposer === 'function' ? disposer : () => {}
     },
-    get() {
-      return undefined
+    get(name) {
+      return name === 'subagents' ? ctx.subagents : undefined
     },
   }
   const roots = sessionCwds ?? (sessionCwd ? [sessionCwd] : [])
@@ -144,7 +144,7 @@ function makeCtx({
   return { ctx, tools, guards, routes, questions }
 }
 
-test('desktop Host 插件：注册 14 个 docwrite 工具与六条路由', () => {
+test('desktop Host 插件：注册 16 个 docwrite 工具与六条路由', () => {
   const { root, dir } = makeRoot()
   try {
     const { ctx, tools, routes } = makeCtx()
@@ -159,11 +159,13 @@ test('desktop Host 插件：注册 14 个 docwrite 工具与六条路由', () =>
         'docwrite_stage_enter',
         'docwrite_stage_done',
         'docwrite_approve',
+        'docwrite_u_confirm',
         'docwrite_review_open',
         'docwrite_review_submit',
         'docwrite_review_extend',
         'docwrite_visual_check',
         'docwrite_force_pause_review',
+        'docwrite_block',
         'docwrite_verify',
         'docwrite_deliver',
       ],
@@ -367,7 +369,7 @@ test('desktop 插件：面板入口不注册工具，预设入口不注册路由
     const presetCtx = makeCtx({ sessionCwd: root })
     delete presetCtx.ctx.webServer
     applyPreset(presetCtx.ctx, { root })
-    assert.equal(presetCtx.tools.length, 14)
+    assert.equal(presetCtx.tools.length, 16)
     assert.equal(presetCtx.guards.length, 1)
     assert.equal(presetCtx.routes.length, 0)
   } finally {
@@ -581,12 +583,113 @@ test('desktop 插件：模式 4 自动验收并可用强制暂停审阅', async 
     const result = await visual.execute({ project: '测试' }, exec)
     assert.equal(result.auto, true)
     assert.equal(result.mode, 4)
+    assert.match(result.notice, /自动审批通过/)
     assert.equal(questions.length, 0)
 
     const paused = await force.execute({ project: '测试', reason: '需要用户确认降重结果' }, exec)
     assert.equal(paused.ok, true)
     assert.equal(paused.mode, 4)
     assert.equal(questions.length, 1)
+
+    setSessionMode('mode-session', 5)
+    const skipped = await force.execute({ project: '测试', reason: '模式 5 强制问询' }, exec)
+    assert.equal(skipped.ok, true)
+    assert.equal(skipped.auto, true)
+    assert.match(skipped.notice, /自动审批通过/)
+    assert.match(skipped.notice, /跳过/)
+    assert.equal(questions.length, 1)
+  } finally {
+    delete process.env.DOCWRITE_MODE_FILE
+    rmSync(root, { recursive: true, force: true })
+    rmSync(modeFile, { force: true })
+  }
+})
+
+test('desktop 插件：U 确认在模式 5 自动通过并返回通知', async () => {
+  const { root } = makeRoot()
+  const modeFile = join(tmpdir(), `docwrite-modes-${process.pid}-${Date.now()}-u.json`)
+  process.env.DOCWRITE_MODE_FILE = modeFile
+  try {
+    const { ctx, tools, questions } = makeCtx({
+      sessionCwd: root,
+      realSubprocess: true,
+      answer: { id: 'docwrite-u-confirm', selected: ['按现有范围降重'] },
+    })
+    applyPreset(ctx, { root })
+    const confirm = tools.find((tool) => tool.name === 'docwrite_u_confirm')
+    const exec = { agent: { id: 'u-session' }, signal: new AbortController().signal, callId: 'u-call' }
+
+    setSessionMode('u-session', 5)
+    const auto = await confirm.execute({ gate: 'U5', project: '测试' }, exec)
+    assert.equal(auto.approved, true)
+    assert.equal(auto.auto, true)
+    assert.equal(auto.mode, 5)
+    assert.match(auto.notice, /自动审批通过/)
+    assert.match(auto.notice, /全自动许可/)
+    assert.equal(questions.length, 0)
+
+    setSessionMode('u-session', 1)
+    const manual = await confirm.execute({ gate: 'U5', project: '测试' }, exec)
+    assert.equal(manual.approved, true)
+    assert.equal(manual.auto, false)
+    assert.equal(questions.length, 1)
+  } finally {
+    delete process.env.DOCWRITE_MODE_FILE
+    rmSync(root, { recursive: true, force: true })
+    rmSync(modeFile, { force: true })
+  }
+})
+
+test('desktop 插件：docwrite_block 需子代理确认后才 block', async () => {
+  const { root } = makeRoot()
+  const modeFile = join(tmpdir(), `docwrite-modes-${process.pid}-${Date.now()}-b.json`)
+  process.env.DOCWRITE_MODE_FILE = modeFile
+  try {
+    const { ctx, tools, questions } = makeCtx({ sessionCwd: root, realSubprocess: true })
+    ctx.subagents = {
+      async startActivation() {
+        return {
+          childId: 'block-review-child',
+          result: Promise.resolve({
+            output: [
+              {
+                type: 'text',
+                text: JSON.stringify({ canContinue: false, reason: '所有来源都缺失，无法继续' }),
+              },
+            ],
+            stopReason: 'completed',
+          }),
+        }
+      },
+    }
+    applyPreset(ctx, { root })
+    const blockTool = tools.find((tool) => tool.name === 'docwrite_block')
+    setSessionMode('block-session', 3)
+    const tooLow = await blockTool.execute(
+      { project: '测试', reason: 'test' },
+      { agent: { id: 'block-session' }, signal: new AbortController().signal, callId: 'block-low' },
+    )
+    assert.equal(tooLow.blocked, false)
+    assert.equal(tooLow.reason, 'mode-too-low')
+
+    setSessionMode('block-session', 4)
+    const result = await blockTool.execute(
+      { project: '测试', reason: '所有来源都缺失' },
+      {
+        agent: { id: 'block-session' },
+        signal: new AbortController().signal,
+        callId: 'block-call',
+      },
+    )
+    assert.equal(result.ok, true)
+    assert.equal(result.blocked, true)
+    assert.equal(result.stop, true)
+    assert.equal(result.confirmed, true)
+    assert.match(result.reviewerReason, /无法继续/)
+    assert.ok(questions.length >= 1)
+    const state = JSON.parse(readFileSync(join(root, 'projects', '测试', '.run', 'state.json'), 'utf8'))
+    assert.equal(state.blocked.reason, '所有来源都缺失')
+    assert.equal(state.blocked.by, 'subagent')
   } finally {
     delete process.env.DOCWRITE_MODE_FILE
     rmSync(root, { recursive: true, force: true })

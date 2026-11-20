@@ -28,7 +28,7 @@
                 2. 阶段完成只能由 `docwrite stage done` 判定；不许口头声称完成。
                 3. 降重必须你本人逐段用 edit 工具改，禁止脚本批量替换；评审必须派 subagent（新上下文），不得自评。
                 4. Markdown 必须先降重、后转换；S7 未完成不得生成 docx/pptx。
-                5. 缺用户确认（pendingApproval）先问用户；approve 必须带用户原话，不许自行 approve。
+                5. 缺用户确认（pendingApproval）：Desktop 用 docwrite_u_confirm（模式 1/2 问用户，模式 3+ 自动通过并返回 notice；不要用通用 question 代替）；TUI 用 docwrite approve 并带用户原话，不许自行 approve。
                 6. 硬门禁 S1/S2/S6/S8/S9/S10/S11 不可豁免。
                 7. 若当前组合提供 docwrite_visual_check，则在每个阶段 stage done 前先调用它，把成果展示给用户并取得“合格/需要修改”的反馈；用户说合格后再 done。
               suffix: 工作目录以当前会话的工作区为准；相对路径都相对它解析。
